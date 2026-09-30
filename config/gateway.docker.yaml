@@ -1,0 +1,63 @@
+# Secure Agent Tool Gateway configuration (local development).
+# Secrets are NOT stored here. Set them as environment variables:
+#   GATEWAY_JWT_SECRET, ADMIN_TOKEN, TOOL_SHARED_SECRET, DATABASE_URL (optional), REDIS_URL (optional)
+
+listen: ":8080"
+profile: full            # full | allowlist_only | off   (the last two are benchmark baselines)
+state_dir: state         # audit key, audit log (file mode), manifest pins
+policy_dir: config/policies
+results_dir: results
+
+max_body_bytes: 1048576
+max_json_depth: 32
+max_decode_depth: 4
+approval_timeout: 60s
+tool_timeout: 10s
+manifest_refresh: 10s
+rate_limit_per_minute: 6000
+
+auth:
+  mode: dev              # dev = tokens from `gatewayctl token`; oidc = Keycloak or another OIDC provider
+  # oidc_issuer: http://localhost:8081/realms/agents
+  # oidc_audience: pnc3-gateway
+  agent_claim: agent
+
+upstreams:
+  - name: workspace
+    url: http://workspace:8101/mcp
+  - name: comms
+    url: http://comms:8102/mcp
+  - name: crm
+    url: http://crm:8103/mcp
+
+agents:
+  - id: support-agent
+    owner: alice@acme.example
+    allowed_tools: [list_tickets, read_ticket, read_file, write_file, run_shell,
+                    send_email, list_outbox, delete_all_emails, fetch_url, query_customers]
+  - id: readonly-agent
+    owner: bob@acme.example
+    allowed_tools: [list_tickets, read_ticket, read_file]
+
+destinations:
+  email_domains: [acme.example]
+  url_hosts: [docs.acme.example, wiki.acme.example, api.acme.example]
+  internal_hosts: ["*.acme.example"]      # allowed to resolve to private addresses
+  static_dns:                              # demo intranet (these names do not exist in public DNS)
+    docs.acme.example: 10.20.0.11
+    wiki.acme.example: 10.20.0.12
+    api.acme.example: 10.20.0.13
+
+# Every tool the gateway will ever forward. Anything else an upstream offers is hidden.
+# args: which arguments are destinations, paths, commands or SQL, so the inspector knows what to check.
+tools:
+  list_tickets:      {server: workspace}
+  read_ticket:       {server: workspace, reads_untrusted: true}
+  read_file:         {server: workspace, reads_untrusted: true, args: {path: path}}
+  write_file:        {server: workspace, args: {path: path}}
+  run_shell:         {server: workspace, destructive: true, args: {command: command}}
+  send_email:        {server: comms, sends_external: true, args: {to: email, cc: email}}
+  list_outbox:       {server: comms}
+  delete_all_emails: {server: comms, destructive: true}
+  fetch_url:         {server: comms, sends_external: true, reads_untrusted: true, args: {url: url}}
+  query_customers:   {server: crm, reads_private: true, args: {query: sql}}
