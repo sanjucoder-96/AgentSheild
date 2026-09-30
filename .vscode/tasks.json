@@ -1,0 +1,485 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run gateway stack",
+			"type": "shell",
+			"command": "cd \"c:/Users/umesh/Downloads/pnc3-gateway\" && go mod download && python -m pip install -r tools/requirements.txt && mkdir -p bin && go build -o bin/gateway ./cmd/gateway && go build -o bin/gatewayctl ./cmd/gatewayctl && go build -o bin/bench ./cmd/bench && bash scripts/start_local.sh",
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Build and run gateway stack",
+			"type": "shell",
+			"command": "Set-Location 'c:/Users/umesh/Downloads/pnc3-gateway'; go mod download; python -m pip install -r tools/requirements.txt; New-Item -ItemType Directory -Force -Path bin | Out-Null; go build -o bin/gateway ./cmd/gateway; go build -o bin/gatewayctl ./cmd/gatewayctl; go build -o bin/bench ./cmd/bench; bash scripts/start_local.sh",
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Test shell execution",
+			"type": "shell",
+			"command": "Set-Location 'c:/Users/umesh/Downloads/pnc3-gateway'; 'hello' | Out-File .\\shellcheck.txt;",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Check Go and Python availability",
+			"type": "shell",
+			"command": "Set-Location 'c:/Users/umesh/Downloads/pnc3-gateway'; go version > .\\env_go.txt 2>&1; python --version > .\\env_python.txt 2>&1; node --version > .\\env_node.txt 2>&1;",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Build gateway binaries",
+			"type": "shell",
+			"command": "Set-Location 'c:/Users/umesh/Downloads/pnc3-gateway'; go mod download > .\\build_mod.txt 2>&1; python -m pip install -r tools/requirements.txt > .\\build_py.txt 2>&1; New-Item -ItemType Directory -Force -Path bin | Out-Null; go build -o bin/gateway ./cmd/gateway > .\\build_gateway.txt 2>&1; go build -o bin/gatewayctl ./cmd/gatewayctl > .\\build_gatewayctl.txt 2>&1; go build -o bin/bench ./cmd/bench > .\\build_bench.txt 2>&1;",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Start complete gateway stack",
+			"type": "shell",
+			"command": "New-Item -ItemType Directory -Force -Path 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs','C:\\Users\\umesh\\Downloads\\pnc3-gateway\\state' | Out-Null; Start-Process -FilePath 'python.exe' -ArgumentList 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\attacker\\attacker_server.py' -WorkingDirectory 'C:\\Users\\umesh\\Downloads\\pnc3-gateway' -RedirectStandardOutput 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\attacker.out.log' -RedirectStandardError 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\attacker.err.log'; Start-Process -FilePath 'python.exe' -ArgumentList 'workspace_server.py' -WorkingDirectory 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\tools' -RedirectStandardOutput 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\workspace.out.log' -RedirectStandardError 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\workspace.err.log'; Start-Process -FilePath 'python.exe' -ArgumentList 'comms_server.py' -WorkingDirectory 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\tools' -RedirectStandardOutput 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\comms.out.log' -RedirectStandardError 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\comms.err.log'; Start-Process -FilePath 'python.exe' -ArgumentList 'crm_server.py' -WorkingDirectory 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\tools' -RedirectStandardOutput 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\crm.out.log' -RedirectStandardError 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\crm.err.log'; Start-Sleep -Seconds 5; Start-Process -FilePath 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\bin\\gateway.exe' -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory 'C:\\Users\\umesh\\Downloads\\pnc3-gateway' -RedirectStandardOutput 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\gateway.out.log' -RedirectStandardError 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\gateway.err.log'; Start-Sleep -Seconds 5; try { (Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode } catch { Write-Error $_; exit 1 }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Run gateway demo",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; python demo/run_demo.py",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run gateway benchmark",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; .\\bin\\bench.exe -profiles full -repeat 1; .\\bin\\gatewayctl.exe audit verify",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Check gateway status",
+			"type": "shell",
+			"command": "try { $r = Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz'; Write-Output ('Gateway already running: HTTP ' + $r.StatusCode) } catch { Write-Output 'Gateway is not running'; exit 1 }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Rebuild and restart gateway",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\bin\\gateway.exe' -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory 'C:\\Users\\umesh\\Downloads\\pnc3-gateway' -RedirectStandardOutput 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\gateway.out.log' -RedirectStandardError 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\logs\\gateway.err.log'; Start-Sleep -Seconds 5; (Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Exercise real agent path",
+			"type": "shell",
+			"command": "$base='http://127.0.0.1:8080'; $admin=@{Authorization='Bearer dev-admin-token'}; $token=(Invoke-RestMethod -Method Post -Uri \"$base/admin/agent/token\" -Headers $admin -ContentType 'application/json' -Body '{\"agent\":\"support-agent\"}').token; $init=Invoke-WebRequest -UseBasicParsing -Method Post -Uri \"$base/mcp\" -Headers @{Authorization=\"Bearer $token\"} -ContentType 'application/json' -Body '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\"}}'; $session=$init.Headers['Mcp-Session-Id']; $call=Invoke-RestMethod -Method Post -Uri \"$base/mcp\" -Headers @{Authorization=\"Bearer $token\";'Mcp-Session-Id'=$session} -ContentType 'application/json' -Body '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"list_tickets\",\"arguments\":{}}}'; Write-Output ($call.result._meta | ConvertTo-Json -Compress); Write-Output (($call.result.content | ConvertTo-Json -Compress)); Write-Output ((Invoke-RestMethod -Uri \"$base/admin/metrics\" -Headers $admin) | ConvertTo-Json -Compress)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify real MCP agent call",
+			"type": "shell",
+			"command": "$base='http://127.0.0.1:8080'; $admin=@{ Authorization = 'Bearer dev-admin-token' }; $token=(Invoke-RestMethod -Method Post -Uri ($base + '/admin/agent/token') -Headers $admin -ContentType 'application/json' -Body '{\"agent\":\"support-agent\"}').token; $agentHeaders=@{ Authorization = ('Bearer ' + $token) }; $init=Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($base + '/mcp') -Headers $agentHeaders -ContentType 'application/json' -Body '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\"}}'; $session=$init.Headers['Mcp-Session-Id']; $callHeaders=@{ Authorization = ('Bearer ' + $token); 'Mcp-Session-Id' = $session }; $call=Invoke-RestMethod -Method Post -Uri ($base + '/mcp') -Headers $callHeaders -ContentType 'application/json' -Body '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"list_tickets\",\"arguments\":{}}}'; Write-Output ($call.result._meta | ConvertTo-Json -Compress); Write-Output ($call.result.content | ConvertTo-Json -Compress); Write-Output ((Invoke-RestMethod -Uri ($base + '/admin/metrics') -Headers $admin) | ConvertTo-Json -Compress)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Inspect MCP response",
+			"type": "shell",
+			"command": "$base='http://127.0.0.1:8080'; $admin=@{ Authorization = 'Bearer dev-admin-token' }; $token=(Invoke-RestMethod -Method Post -Uri ($base + '/admin/agent/token') -Headers $admin -ContentType 'application/json' -Body '{\"agent\":\"support-agent\"}').token; $h=@{ Authorization = ('Bearer ' + $token); 'Content-Type' = 'application/json' }; $init=Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($base + '/mcp') -Headers $h -Body '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\"}}'; Write-Output ('INIT=' + $init.Content); Write-Output ('SESSION=' + [string]$init.Headers['Mcp-Session-Id']); $h['Mcp-Session-Id']=[string]$init.Headers['Mcp-Session-Id']; $call=Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($base + '/mcp') -Headers $h -Body '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"list_tickets\",\"arguments\":{}}}'; Write-Output ('CALL=' + $call.Content)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify allowed tool execution",
+			"type": "shell",
+			"command": "$base='http://127.0.0.1:8080'; $admin=@{ Authorization = 'Bearer dev-admin-token' }; $token=(Invoke-RestMethod -Method Post -Uri ($base + '/admin/agent/token') -Headers $admin -ContentType 'application/json' -Body ((@{agent='support-agent'} | ConvertTo-Json -Compress))).token; $h=@{ Authorization = ('Bearer ' + $token); 'Content-Type' = 'application/json' }; $initBody=@{jsonrpc='2.0';id=1;method='initialize';params=@{protocolVersion='2025-11-25'}} | ConvertTo-Json -Compress; $init=Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($base + '/mcp') -Headers $h -Body $initBody; $h['Mcp-Session-Id']=[string]$init.Headers['Mcp-Session-Id']; $callBody=@{jsonrpc='2.0';id=2;method='tools/call';params=@{name='list_tickets';arguments=@{}}} | ConvertTo-Json -Compress; $call=Invoke-RestMethod -Method Post -Uri ($base + '/mcp') -Headers $h -Body $callBody; Write-Output ($call.result._meta | ConvertTo-Json -Compress); Write-Output ($call.result.content | ConvertTo-Json -Compress)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Restart real tool servers",
+			"type": "shell",
+			"command": "$root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-CimInstance Win32_Process -Filter \"Name = 'python.exe'\" | Where-Object { $_.CommandLine -match 'attacker_server|workspace_server|comms_server|crm_server' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Start-Process -FilePath 'python.exe' -ArgumentList ($root + '\\attacker\\attacker_server.py') -WorkingDirectory $root -RedirectStandardOutput ($root + '\\logs\\attacker.out.log') -RedirectStandardError ($root + '\\logs\\attacker.err.log'); Start-Process -FilePath 'python.exe' -ArgumentList 'workspace_server.py' -WorkingDirectory ($root + '\\tools') -RedirectStandardOutput ($root + '\\logs\\workspace.out.log') -RedirectStandardError ($root + '\\logs\\workspace.err.log'); Start-Process -FilePath 'python.exe' -ArgumentList 'comms_server.py' -WorkingDirectory ($root + '\\tools') -RedirectStandardOutput ($root + '\\logs\\comms.out.log') -RedirectStandardError ($root + '\\logs\\comms.err.log'); Start-Process -FilePath 'python.exe' -ArgumentList 'crm_server.py' -WorkingDirectory ($root + '\\tools') -RedirectStandardOutput ($root + '\\logs\\crm.out.log') -RedirectStandardError ($root + '\\logs\\crm.err.log'); Start-Sleep -Seconds 5; $admin=@{ Authorization='Bearer dev-admin-token' }; Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/tools/refresh' -Headers $admin | Out-Null; (Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Restart project tools cleanly",
+			"type": "shell",
+			"command": "$root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and ($_.CommandLine -match 'attacker_server|workspace_server|comms_server|crm_server') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Start-Process python -ArgumentList ($root + '\\attacker\\attacker_server.py') -WorkingDirectory $root -RedirectStandardOutput ($root + '\\logs\\attacker.out.log') -RedirectStandardError ($root + '\\logs\\attacker.err.log'); Start-Process python -ArgumentList 'workspace_server.py' -WorkingDirectory ($root + '\\tools') -RedirectStandardOutput ($root + '\\logs\\workspace.out.log') -RedirectStandardError ($root + '\\logs\\workspace.err.log'); Start-Process python -ArgumentList 'comms_server.py' -WorkingDirectory ($root + '\\tools') -RedirectStandardOutput ($root + '\\logs\\comms.out.log') -RedirectStandardError ($root + '\\logs\\comms.err.log'); Start-Process python -ArgumentList 'crm_server.py' -WorkingDirectory ($root + '\\tools') -RedirectStandardOutput ($root + '\\logs\\crm.out.log') -RedirectStandardError ($root + '\\logs\\crm.err.log'); Start-Sleep -Seconds 5; $admin=@{ Authorization='Bearer dev-admin-token' }; Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/tools/refresh' -Headers $admin | Out-Null; (Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Verify real tools and enforcement",
+			"type": "shell",
+			"command": "$base='http://127.0.0.1:8080'; $admin=@{Authorization='Bearer dev-admin-token'}; $token=(Invoke-RestMethod -Method Post -Uri ($base+'/admin/agent/token') -Headers $admin -ContentType 'application/json' -Body ((@{agent='support-agent'}|ConvertTo-Json -Compress))).token; $headers=@{Authorization=('Bearer '+$token);'Content-Type'='application/json'}; $init=Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($base+'/mcp') -Headers $headers -Body ((@{jsonrpc='2.0';id=1;method='initialize';params=@{protocolVersion='2025-11-25'}}|ConvertTo-Json -Compress)); $headers['Mcp-Session-Id']=[string]$init.Headers['Mcp-Session-Id']; function Call($name,$args,$id){$body=@{jsonrpc='2.0';id=$id;method='tools/call';params=@{name=$name;arguments=$args}}|ConvertTo-Json -Compress; Invoke-RestMethod -Method Post -Uri ($base+'/mcp') -Headers $headers -Body $body}; $db=Call 'query_customers' @{query='SELECT id, name FROM customers'} 2; $safe=Call 'run_shell' @{command='echo hello'} 3; $headers['X-Approval-Wait-Ms']='100'; $danger=Call 'run_shell' @{command='rm -rf /'} 4; Write-Output ('DB=' + ($db.result._meta|ConvertTo-Json -Compress)); Write-Output (($db.result.content|ConvertTo-Json -Compress)); Write-Output ('SAFE=' + ($safe.result._meta|ConvertTo-Json -Compress)); Write-Output (($safe.result.content|ConvertTo-Json -Compress)); Write-Output ('DANGER=' + ($danger.result._meta|ConvertTo-Json -Compress)); Write-Output (($danger.result.content|ConvertTo-Json -Compress))",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify real execution paths",
+			"type": "shell",
+			"command": "$base='http://127.0.0.1:8080'; $admin=@{Authorization='Bearer dev-admin-token'}; $token=(Invoke-RestMethod -Method Post -Uri ($base+'/admin/agent/token') -Headers $admin -ContentType 'application/json' -Body ((@{agent='support-agent'}|ConvertTo-Json -Compress))).token; $headers=@{Authorization=('Bearer '+$token);'Content-Type'='application/json'}; $init=Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($base+'/mcp') -Headers $headers -Body ((@{jsonrpc='2.0';id=1;method='initialize';params=@{protocolVersion='2025-11-25'}}|ConvertTo-Json -Compress -Depth 5)); $headers['Mcp-Session-Id']=[string]$init.Headers['Mcp-Session-Id']; function Call($name,$args,$id){$body=@{jsonrpc='2.0';id=$id;method='tools/call';params=@{name=$name;arguments=$args}}|ConvertTo-Json -Compress -Depth 5; Invoke-RestMethod -Method Post -Uri ($base+'/mcp') -Headers $headers -Body $body}; $db=Call 'query_customers' @{query='SELECT id, name FROM customers'} 2; $safe=Call 'run_shell' @{command='echo hello'} 3; $headers['X-Approval-Wait-Ms']='100'; $danger=Call 'run_shell' @{command='rm -rf /'} 4; Write-Output ('DB=' + ($db.result._meta|ConvertTo-Json -Compress)); Write-Output (($db.result.content|ConvertTo-Json -Compress)); Write-Output ('SAFE=' + ($safe.result._meta|ConvertTo-Json -Compress)); Write-Output (($safe.result.content|ConvertTo-Json -Compress)); Write-Output ('DANGER=' + ($danger.result._meta|ConvertTo-Json -Compress)); Write-Output (($danger.result.content|ConvertTo-Json -Compress))",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Probe real MCP with JSON client",
+			"type": "shell",
+			"command": "python -c \"import httpx,json; b='http://127.0.0.1:8080'; c=httpx.Client(); h={'Authorization':'Bearer dev-admin-token'}; t=c.post(b+'/admin/agent/token',headers=h,json={'agent':'support-agent'}).json()['token']; ah={'Authorization':'Bearer '+t}; i=c.post(b+'/mcp',headers=ah,json={'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-11-25'}}); ah['Mcp-Session-Id']=i.headers.get('Mcp-Session-Id',''); r=c.post(b+'/mcp',headers=ah,json={'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'query_customers','arguments':{'query':'SELECT id, name FROM customers'}}}); print(r.text); r=c.post(b+'/mcp',headers=ah,json={'jsonrpc':'2.0','id':3,'method':'tools/call','params':{'name':'run_shell','arguments':{'command':'echo hello'}}}); print(r.text); ah['X-Approval-Wait-Ms']='100'; r=c.post(b+'/mcp',headers=ah,json={'jsonrpc':'2.0','id':4,'method':'tools/call','params':{'name':'run_shell','arguments':{'command':'rm -rf /'}}}); print(r.text)\"",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run final live gateway probe",
+			"type": "shell",
+			"command": "python -c 'import httpx; b=\"http://127.0.0.1:8080\"; c=httpx.Client(); t=c.post(b+\"/admin/agent/token\",headers={\"Authorization\":\"Bearer dev-admin-token\"},json={\"agent\":\"support-agent\"}).json()[\"token\"]; h={\"Authorization\":\"Bearer \"+t}; i=c.post(b+\"/mcp\",headers=h,json={\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\"}}); h[\"Mcp-Session-Id\"]=i.headers.get(\"Mcp-Session-Id\",\"\"); print(c.post(b+\"/mcp\",headers=h,json={\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"query_customers\",\"arguments\":{\"query\":\"SELECT id, name FROM customers\"}}}).text); print(c.post(b+\"/mcp\",headers=h,json={\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"run_shell\",\"arguments\":{\"command\":\"echo hello\"}}}).text); h[\"X-Approval-Wait-Ms\"]=\"100\"; print(c.post(b+\"/mcp\",headers=h,json={\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"run_shell\",\"arguments\":{\"command\":\"rm -rf /\"}}}).text)'",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Activate final build",
+			"type": "shell",
+			"command": "$root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath ($root+'\\bin\\gateway.exe') -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput ($root+'\\logs\\gateway.out.log') -RedirectStandardError ($root+'\\logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $agent=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/agent').StatusCode; Write-Output ('health='+$health+' agent='+$agent)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Activate navigation fix",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath (Get-Location).Path+'\\bin\\gateway.exe' -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory (Get-Location) -RedirectStandardOutput 'logs\\gateway.out.log' -RedirectStandardError 'logs\\gateway.err.log'; Start-Sleep -Seconds 5; $root=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/').StatusCode; $agent=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/agent').StatusCode; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; Write-Output ('root='+$root+' agent='+$agent+' health='+$health)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Restart gateway with navigation fix",
+			"type": "shell",
+			"command": "$root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $rootStatus=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/').StatusCode; $agentStatus=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/agent').StatusCode; $healthStatus=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; Write-Output ('root='+$rootStatus+' agent='+$agentStatus+' health='+$healthStatus)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Run redesigned gateway UI",
+			"type": "shell",
+			"command": "$root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $rootStatus=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/').StatusCode; $agentStatus=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/agent').StatusCode; Write-Output ('health='+$health+' root='+$rootStatus+' agent='+$agentStatus)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Restart dynamic agent console",
+			"type": "shell",
+			"command": "$root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $agent=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/agent').StatusCode; Write-Output ('health='+$health+' agent='+$agent)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Verify upgraded gateway",
+			"type": "shell",
+			"command": "$health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $metrics=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/admin/metrics' -Headers @{Authorization='Bearer dev-admin-token'}).StatusCode; Write-Output ('health='+$health+' metrics='+$metrics)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify model fail-closed behavior",
+			"type": "shell",
+			"command": "try { Invoke-WebRequest -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8080/admin/agent/plan' -Headers @{Authorization='Bearer dev-admin-token'} -ContentType 'application/json' -Body '{\"messages\":[{\"role\":\"user\",\"content\":\"List tickets\"}]}' | Out-Null; Write-Output 'unexpected model response' } catch { Write-Output ('model endpoint without provider: HTTP ' + $_.Exception.Response.StatusCode.value__) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Activate Grok gateway",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; try { Invoke-WebRequest -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8080/admin/agent/plan' -Headers @{Authorization='Bearer dev-admin-token'} -ContentType 'application/json' -Body '{\"messages\":[{\"role\":\"user\",\"content\":\"List tickets\"}]}' | Out-Null; Write-Output 'unexpected model response' } catch { Write-Output ('health='+$health+' no-key-planning=HTTP '+$_.Exception.Response.StatusCode.value__) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Start gateway with Grok env",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $keyPresent=([string]::IsNullOrWhiteSpace($env:MODEL_API_KEY) -eq $false); $keyLength=$env:MODEL_API_KEY.Length; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; Write-Output ('grok-key-present='+$keyPresent+' key-length='+$keyLength+' health='+$health)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Run Groq agent endpoint",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go test ./...; go build -o bin\\gateway.exe .\\cmd\\gateway; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; try { $plan=Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8080/admin/agent/plan' -Headers @{Authorization='Bearer dev-admin-token'} -ContentType 'application/json' -Body '{\"messages\":[{\"role\":\"user\",\"content\":\"List the open support tickets\"}]}' ; Write-Output ('health='+$health+' groq-planning=HTTP 200 role='+$plan.role+' tool-calls='+@($plan.tool_calls).Count) } catch { Write-Output ('health='+$health+' groq-planning=HTTP '+$_.Exception.Response.StatusCode.value__) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Inspect Groq response error",
+			"type": "shell",
+			"command": "try { Invoke-WebRequest -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8080/admin/agent/plan' -Headers @{Authorization='Bearer dev-admin-token'} -ContentType 'application/json' -Body '{\"messages\":[{\"role\":\"user\",\"content\":\"List the open support tickets\"}]}' | Out-Null } catch { $response=$_.Exception.Response; $reader=New-Object System.IO.StreamReader($response.GetResponseStream()); Write-Output ('status='+[int]$response.StatusCode+' body='+$reader.ReadToEnd()) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Read Groq planning error",
+			"type": "shell",
+			"command": "try { Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/agent/plan' -Headers @{Authorization='Bearer dev-admin-token'} -ContentType 'application/json' -Body (@{messages=@(@{role='user';content='List the open support tickets'})}|ConvertTo-Json -Depth 5 -Compress) | ConvertTo-Json -Compress } catch { Write-Output $_.ErrorDetails.Message }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Check Groq endpoint directly",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $body=@{model=$env:MODEL_NAME;messages=@(@{role='user';content='Say hello'})}|ConvertTo-Json -Depth 5 -Compress; try { $r=Invoke-WebRequest -UseBasicParsing -Method Post -Uri $env:MODEL_ENDPOINT -Headers @{Authorization=('Bearer '+$env:MODEL_API_KEY)} -ContentType 'application/json' -Body $body; Write-Output ('status='+$r.StatusCode+' body='+$r.Content.Substring(0,[Math]::Min(160,$r.Content.Length))) } catch { $status=$_.Exception.Response.StatusCode.value__; $detail=$_.ErrorDetails.Message; Write-Output ('status='+$status+' detail='+$detail) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Activate working Groq model",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $plan=Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/agent/plan' -Headers @{Authorization='Bearer dev-admin-token'} -ContentType 'application/json' -Body ((@{messages=@(@{role='user';content='List the open support tickets'})}|ConvertTo-Json -Depth 5 -Compress)); $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; Write-Output ('health='+$health+' provider=groq model='+$env:MODEL_NAME+' role='+$plan.role+' tool-calls='+@($plan.tool_calls).Count)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "List accessible Groq models",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $models=Invoke-RestMethod -Uri 'https://api.groq.com/openai/v1/models' -Headers @{Authorization=('Bearer '+$env:MODEL_API_KEY)}; $models.data | Where-Object { $_.id -match 'llama|qwen|gpt-oss' } | Select-Object -ExpandProperty id",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Restart with accessible Groq model",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $plan=Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/agent/plan' -Headers @{Authorization='Bearer dev-admin-token'} -ContentType 'application/json' -Body ((@{messages=@(@{role='user';content='List the open support tickets'})}|ConvertTo-Json -Depth 5 -Compress)); $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; Write-Output ('health='+$health+' provider=groq model='+$env:MODEL_NAME+' role='+$plan.role+' tool-calls='+@($plan.tool_calls).Count)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Check Groq gateway status",
+			"type": "shell",
+			"command": "$r=Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz'; Write-Output $r.StatusCode",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify Groq model access",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $body=@{model=$env:MODEL_NAME;messages=@(@{role='user';content='Say hello'})}|ConvertTo-Json -Depth 5 -Compress; try { $r=Invoke-WebRequest -UseBasicParsing -Method Post -Uri $env:MODEL_ENDPOINT -Headers @{Authorization=('Bearer '+$env:MODEL_API_KEY)} -ContentType 'application/json' -Body $body; Write-Output ('status='+$r.StatusCode+' model='+$env:MODEL_NAME) } catch { Write-Output ('status='+$_.Exception.Response.StatusCode.value__+' model='+$env:MODEL_NAME) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify gateway Groq planning",
+			"type": "shell",
+			"command": "try { $body=@{messages=@(@{role='user';content='List the open support tickets'})}|ConvertTo-Json -Depth 5 -Compress; $r=Invoke-WebRequest -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8080/admin/agent/plan' -Headers @{Authorization='Bearer dev-admin-token'} -ContentType 'application/json' -Body $body; $p=$r.Content|ConvertFrom-Json; Write-Output ('status='+$r.StatusCode+' role='+$p.role+' tool-calls='+@($p.tool_calls).Count) } catch { Write-Output ('status='+$_.Exception.Response.StatusCode.value__+' detail='+$_.ErrorDetails.Message) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Activate detailed model errors",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; Write-Output ('health='+((Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode))",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Activate dynamic policy UI",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $headers=@{Authorization='Bearer dev-admin-token'}; $status=Invoke-RestMethod -Uri 'http://127.0.0.1:8080/admin/policies' -Headers $headers; $body=@{file='90-custom.cedar';prompt='Allow support-agent to read support tickets but deny all destructive tools.'}|ConvertTo-Json -Depth 5 -Compress; try { $generated=Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/policies/generate' -Headers $headers -ContentType 'application/json' -Body $body; Write-Output ('health='+((Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode)+' policy-files='+$status.files.PSObject.Properties.Count+' cedar-generated=yes') } catch { Write-Output ('policy-generation=HTTP '+$_.Exception.Response.StatusCode.value__) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Inspect Cedar generation validation",
+			"type": "shell",
+			"command": "$headers=@{Authorization='Bearer dev-admin-token'}; $body=@{file='90-custom.cedar';prompt='Allow support-agent to read support tickets but deny all destructive tools.'}|ConvertTo-Json -Depth 5 -Compress; try { Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/policies/generate' -Headers $headers -ContentType 'application/json' -Body $body | Out-Null } catch { Write-Output $_.ErrorDetails.Message }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify validated Cedar generation",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $headers=@{Authorization='Bearer dev-admin-token'}; $body=@{file='90-custom.cedar';prompt='Allow the support agent to read support tickets, and deny destructive tools.'}|ConvertTo-Json -Depth 5 -Compress; try { $generated=Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/policies/generate' -Headers $headers -ContentType 'application/json' -Body $body; Write-Output ('health='+((Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode)+' cedar-validation=passed file='+$generated.file) } catch { Write-Output ('policy-generation=HTTP '+$_.Exception.Response.StatusCode.value__+' detail='+$_.ErrorDetails.Message) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Inspect generated Cedar syntax",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $headers=@{Authorization='Bearer dev-admin-token'}; $body=@{file='90-custom.cedar';prompt='Allow the support agent to read support tickets, and deny destructive tools.'}|ConvertTo-Json -Depth 5 -Compress; try { Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/policies/generate' -Headers $headers -ContentType 'application/json' -Body $body | Out-Null; Write-Output 'cedar-validation=passed' } catch { Write-Output $_.ErrorDetails.Message }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Check policy gateway health",
+			"type": "shell",
+			"command": "$r=Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz'; Write-Output $r.StatusCode",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Activate policy editor UI",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $rootStatus=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/').StatusCode; $policies=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/admin/policies' -Headers @{Authorization='Bearer dev-admin-token'}).StatusCode; Write-Output ('health='+$health+' dashboard='+$rootStatus+' policies-api='+$policies)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Activate registry restrictions",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $tools=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/admin/tools' -Headers @{Authorization='Bearer dev-admin-token'}).StatusCode; Write-Output ('health='+$health+' tools-api='+$tools)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Verify tool lifecycle controls",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $h=@{Authorization='Bearer dev-admin-token'}; $s=Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/tools/list_tickets/suspend' -Headers $h; $r=Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/admin/tools/list_tickets/resume' -Headers $h; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; Write-Output ('health='+$health+' suspend='+$s.kind+' resume='+$r.kind)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Generate live benchmark results",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; .\\bin\\bench.exe -profiles full -repeat 1",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Clean rebuild complete project",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web'; npm.cmd run build; Set-Location ..; go test ./...; go build -o bin\\gateway.exe .\\cmd\\gateway; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $h=@{Authorization='Bearer dev-admin-token'}; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $metrics=Invoke-RestMethod -Uri 'http://127.0.0.1:8080/admin/metrics' -Headers $h; $tools=Invoke-RestMethod -Uri 'http://127.0.0.1:8080/admin/tools' -Headers $h; $policies=Invoke-RestMethod -Uri 'http://127.0.0.1:8080/admin/policies' -Headers $h; Write-Output ('health='+$health+' tools='+@($tools).Count+' policies='+@($policies.policies).Count+' accuracy='+$metrics.validation_accuracy)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Activate policy registry sync",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $h=@{Authorization='Bearer dev-admin-token'}; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $p=Invoke-RestMethod -Uri 'http://127.0.0.1:8080/admin/policies' -Headers $h; $t=Invoke-RestMethod -Uri 'http://127.0.0.1:8080/admin/tools' -Headers $h; Write-Output ('health='+$health+' policies='+@($p.policies).Count+' tools='+@($t).Count+' sync=enabled')",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Build routed decision fix",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web'; npm.cmd run build; Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway;",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Serve routed decision fix",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; Write-Output ('health='+((Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode))",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Verify policy file create delete",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; Get-Content .env | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0]) -Value $pair[1] }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $h=@{Authorization='Bearer dev-admin-token';'Content-Type'='text/plain'}; $cedar='@id(\"temporary-ui-test\")`n@reason(\"temporary UI lifecycle test\")`npermit (principal, action, resource);'; Invoke-RestMethod -Method Put -Uri 'http://127.0.0.1:8080/admin/policies/90-ui-test.cedar' -Headers $h -Body $cedar | Out-Null; $created=Test-Path (Join-Path $root 'config\\policies\\90-ui-test.cedar'); Invoke-RestMethod -Method Delete -Uri 'http://127.0.0.1:8080/admin/policies/90-ui-test.cedar' -Headers @{Authorization='Bearer dev-admin-token'} | Out-Null; $deleted=(-not (Test-Path (Join-Path $root 'config\\policies\\90-ui-test.cedar'))); Write-Output ('created='+$created+' deleted='+$deleted+' health='+((Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode))",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Confirm physical policy deletion",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $h=@{Authorization='Bearer dev-admin-token';'Content-Type'='text/plain'}; $cedar=Get-Content 'config\\policies\\00-access.cedar' -Raw; Invoke-RestMethod -Method Put -Uri 'http://127.0.0.1:8080/admin/policies/90-ui-test.cedar' -Headers $h -Body $cedar | Out-Null; $created=Test-Path 'config\\policies\\90-ui-test.cedar'; Invoke-RestMethod -Method Delete -Uri 'http://127.0.0.1:8080/admin/policies/90-ui-test.cedar' -Headers @{Authorization='Bearer dev-admin-token'} | Out-Null; $deleted=(-not (Test-Path 'config\\policies\\90-ui-test.cedar')); Write-Output ('created='+$created+' deleted='+$deleted)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify policy file lifecycle",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $h=@{Authorization='Bearer dev-admin-token';'Content-Type'='text/plain'}; $cedar=(Get-Content 'config\\policies\\00-access.cedar' -Raw).Replace('agent-tool-allowlist','temporary-ui-test'); Invoke-RestMethod -Method Put -Uri 'http://127.0.0.1:8080/admin/policies/90-ui-test.cedar' -Headers $h -Body $cedar | Out-Null; $created=Test-Path 'config\\policies\\90-ui-test.cedar'; Invoke-RestMethod -Method Delete -Uri 'http://127.0.0.1:8080/admin/policies/90-ui-test.cedar' -Headers @{Authorization='Bearer dev-admin-token'} | Out-Null; $deleted=(-not (Test-Path 'config\\policies\\90-ui-test.cedar')); Write-Output ('created='+$created+' deleted='+$deleted)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Confirm backend policy file creation",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $nl=[Environment]::NewLine; $cedar='@id(\"temporary-ui-test\")'+$nl+'@reason(\"temporary UI lifecycle test\")'+$nl+'permit (principal, action, resource);'; $h=@{Authorization='Bearer dev-admin-token';'Content-Type'='text/plain'}; Invoke-RestMethod -Method Put -Uri 'http://127.0.0.1:8080/admin/policies/90-ui-test.cedar' -Headers $h -Body $cedar | Out-Null; $created=Test-Path 'config\\policies\\90-ui-test.cedar'; Invoke-RestMethod -Method Delete -Uri 'http://127.0.0.1:8080/admin/policies/90-ui-test.cedar' -Headers @{Authorization='Bearer dev-admin-token'} | Out-Null; $deleted=(-not (Test-Path 'config\\policies\\90-ui-test.cedar')); Write-Output ('created='+$created+' deleted='+$deleted)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Inspect Git installation",
+			"type": "shell",
+			"command": "Write-Output ('git-command=' + [bool](Get-Command git -ErrorAction SilentlyContinue)); Write-Output ('git-cmd=' + (Test-Path 'C:\\Program Files\\Git\\cmd\\git.exe')); Write-Output ('git-bin=' + (Test-Path 'C:\\Program Files\\Git\\bin\\git.exe')); Write-Output ('github-cli=' + [bool](Get-Command gh -ErrorAction SilentlyContinue)); Write-Output ('git-folder=' + (Test-Path '.git'))",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Push repository branch",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Write-Error 'Git is not installed or not available on PATH'; exit 1 }; if (-not (Test-Path '.git')) { git init; git branch -M V1-WorkingCopy } else { git checkout -B V1-WorkingCopy }; if (-not (git remote get-url origin 2>$null)) { git remote add origin 'https://github.com/sanjucoder-96/AgentSheild.git' }; git add .; git status --short; git commit -m 'Initial V1 working copy'; git push -u origin V1-WorkingCopy",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Push V1 working copy",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Write-Error 'Git is still unavailable'; exit 1 }; if (-not (Test-Path '.git')) { git init; git branch -M V1-WorkingCopy } else { git checkout -B V1-WorkingCopy }; $remote=git remote get-url origin 2>$null; if (-not $remote) { git remote add origin 'https://github.com/sanjucoder-96/AgentSheild.git' }; git add .; git status --short; git commit -m 'Initial V1 working copy'; git push -u origin V1-WorkingCopy",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

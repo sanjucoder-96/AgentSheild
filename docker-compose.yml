@@ -1,0 +1,75 @@
+# Full stack: gateway + three tool servers + attacker sink + Postgres + Redis.
+# Secrets here are DEV defaults. Change them for anything real.
+#
+#   docker compose up --build          start everything
+#   docker compose --profile demo up    also run the attacker sink
+#
+# Dashboard: http://localhost:8080  (admin token below)
+
+name: pnc3-gateway
+
+x-tool-env: &tool-env
+  TOOL_HOST: 0.0.0.0
+  TOOL_SHARED_SECRET: dev-tool-secret-change-me
+  ATTACKER_URL: http://attacker:9999
+
+services:
+  gateway:
+    build: { context: ., dockerfile: Dockerfile }
+    ports: ["8080:8080"]
+    environment:
+      GATEWAY_LISTEN: ":8080"
+      GATEWAY_PROFILE: full
+      GATEWAY_JWT_SECRET: dev-jwt-secret-change-me
+      ADMIN_TOKEN: dev-admin-token
+      TOOL_SHARED_SECRET: dev-tool-secret-change-me
+      DATABASE_URL: postgres://gateway:gateway@postgres:5432/gateway?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      GATEWAY_STATE_DIR: /app/state
+      GATEWAY_CONFIG: /app/config/gateway.docker.yaml
+    volumes: ["gateway-state:/app/state", "./config:/app/config:ro", "./results:/app/results"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      workspace: { condition: service_started }
+      comms: { condition: service_started }
+      crm: { condition: service_started }
+
+  workspace:
+    build: { context: ., dockerfile: tools/Dockerfile }
+    command: python tools/workspace_server.py
+    environment: { <<: *tool-env, TOOL_PORT: "8101" }
+  comms:
+    build: { context: ., dockerfile: tools/Dockerfile }
+    command: python tools/comms_server.py
+    environment: { <<: *tool-env, TOOL_PORT: "8102" }
+  crm:
+    build: { context: ., dockerfile: tools/Dockerfile }
+    command: python tools/crm_server.py
+    environment: { <<: *tool-env, TOOL_PORT: "8103" }
+
+  attacker:
+    build: { context: ., dockerfile: tools/Dockerfile }
+    command: python attacker/attacker_server.py
+    environment: { ATTACKER_HOST: 0.0.0.0 }
+    ports: ["9999:9999"]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gateway
+      POSTGRES_PASSWORD: gateway
+      POSTGRES_DB: gateway
+    volumes: ["pg-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+
+volumes:
+  gateway-state:
+  pg-data:
