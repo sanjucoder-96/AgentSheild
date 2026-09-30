@@ -69,10 +69,16 @@ function Login({ onLogin }) {
 
 const VERDICT_LABEL = { allow: "ALLOW", deny: "DENY", approval: "APPROVE?", error: "ERROR" };
 
+const NAV_ITEMS = [
+  ["live", "Live feed", "01", "/home"], ["agent", "Agent console", "02", "/agent"], ["approvals", "Approvals", "03", "/approvals"],
+  ["architecture", "Architecture", "04", "/architecture"], ["tools", "Tool registry", "05", "/tools"], ["policies", "Policies", "06", "/policies"], ["benchmark", "Benchmark", "07", "/benchmark"], ["audit", "Audit chain", "08", "/audit"],
+];
+
+const tabFromPath = (path) => NAV_ITEMS.find(([, , , route]) => route === path)?.[0] || "live";
+
 function Console({ user, onLogout }) {
   const client = useMemo(() => api(onLogout), [onLogout]);
-  const tabFromLocation = () => location.pathname === "/agent" ? "agent" : "live";
-  const [tab, setTab] = useState(tabFromLocation);
+  const [tab, setTab] = useState(() => tabFromPath(location.pathname));
   const [state, setState] = useState(null);
   const [connected, setConnected] = useState(false);
   const [decisions, setDecisions] = useState([]);
@@ -84,18 +90,13 @@ function Console({ user, onLogout }) {
   const refreshState = useCallback(() => client.get("/admin/state").then(setState).catch(() => setState(null)), [client]);
   const refreshMetrics = useCallback(() => client.get("/admin/metrics").then(setMetrics).catch(() => setMetrics(null)), [client]);
   const selectTab = (next) => {
-    const path = next === "agent" ? "/agent" : "/";
+    const path = NAV_ITEMS.find(([id]) => id === next)?.[3] || "/home";
     if (location.pathname !== path) history.pushState({}, "", path);
     setTab(next);
   };
 
-  const navItems = [
-    ["live", "Live feed", "01"], ["agent", "Agent console", "02"], ["approvals", "Approvals", "03"],
-    ["architecture", "Architecture", "04"], ["tools", "Tool registry", "05"], ["policies", "Policies", "06"], ["benchmark", "Benchmark", "07"], ["audit", "Audit chain", "08"],
-  ];
-
   useEffect(() => {
-    const onPopState = () => setTab(tabFromLocation());
+    const onPopState = () => setTab(tabFromPath(location.pathname));
     addEventListener("popstate", onPopState);
     return () => removeEventListener("popstate", onPopState);
   }, []);
@@ -145,14 +146,14 @@ function Console({ user, onLogout }) {
         </div>
         <div className="side-label">Navigation</div>
         <nav className="side-nav">
-          {navItems.map(([id, label, number]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => selectTab(id)}><span>{number}</span>{label}{id === "approvals" && approvals.length > 0 && <b>{approvals.length}</b>}</button>)}
+          {NAV_ITEMS.map(([id, label, number, path]) => <a key={id} className={tab === id ? "active" : ""} href={path} onClick={(event) => { event.preventDefault(); selectTab(id); }}><span>{number}</span>{label}{id === "approvals" && approvals.length > 0 && <b>{approvals.length}</b>}</a>)}
         </nav>
         <div className="sidebar-foot"><span className={"signal-dot " + (connected ? "on" : "")}></span><span>{connected ? "Gateway online" : "Connecting"}</span><small>v0.1.0-mvp</small></div>
       </aside>
 
       <section className="workspace">
         <header className="top">
-          <div><div className="eyebrow">SECURITY OPERATIONS / {tab.toUpperCase()}</div><h1>{navItems.find(([id]) => id === tab)?.[1] || "Live feed"}</h1></div>
+          <div><div className="eyebrow">SECURITY OPERATIONS / {tab.toUpperCase()}</div><h1>{NAV_ITEMS.find(([id]) => id === tab)?.[1] || "Live feed"}</h1></div>
           <div className="status-pills">
             {state && <span className="system-chip"><i className="signal-dot on"></i> {state.profile} / {state.policies_loaded} policies</span>}
             <UserBox user={user} onLogout={onLogout} />

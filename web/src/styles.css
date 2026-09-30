@@ -45,11 +45,11 @@ header.top {
 .sidebar { display: flex; flex-direction: column; min-height: 100vh; background: #fff; border-right: 1px solid var(--line); }
 .side-label { padding: 26px 20px 9px; color: var(--muted); font: 10px var(--mono); letter-spacing: 1.4px; text-transform: uppercase; }
 .side-nav { display: grid; gap: 3px; padding: 0 10px; }
-.side-nav button { display: grid; grid-template-columns: 27px 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 11px 10px; border: 0; border-left: 3px solid transparent; background: transparent; color: var(--muted); text-align: left; font: 600 13px var(--sans); cursor: pointer; }
-.side-nav button span { color: #99aaad; font: 10px var(--mono); }
-.side-nav button:hover { color: var(--ink); background: var(--panel-2); }
-.side-nav button.active { color: var(--ink); border-left-color: var(--accent); background: #e4f3f4; }
-.side-nav button.active span { color: var(--accent); }
+.side-nav a { display: grid; grid-template-columns: 27px 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 11px 10px; border: 0; border-left: 3px solid transparent; background: transparent; color: var(--muted); text-align: left; font: 600 13px var(--sans); text-decoration: none; cursor: pointer; }
+.side-nav a span { color: #99aaad; font: 10px var(--mono); }
+.side-nav a:hover { color: var(--ink); background: var(--panel-2); }
+.side-nav a.active { color: var(--ink); border-left-color: var(--accent); background: #e4f3f4; }
+.side-nav a.active span { color: var(--accent); }
 .side-nav b { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--deny); color: #fff; font: 10px var(--mono); }
 .sidebar-foot { display: grid; grid-template-columns: 10px 1fr; gap: 5px 8px; margin-top: auto; padding: 17px 20px; border-top: 1px solid var(--line); color: var(--muted); font: 11px var(--mono); }
 .sidebar-foot small { grid-column: 2; color: #94a6a8; }
@@ -197,9 +197,9 @@ button.act:hover { filter: brightness(1.15); }
   .brand-block { padding: 14px 16px; }
   .side-label, .sidebar-foot { display: none; }
   .side-nav { display: flex; gap: 2px; overflow-x: auto; padding: 8px; }
-  .side-nav button { display: flex; flex: 0 0 auto; gap: 6px; width: auto; padding: 8px 10px; border-left: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
-  .side-nav button.active { border-bottom-color: var(--accent); }
-  .side-nav button span { display: none; }
+  .side-nav a { display: flex; flex: 0 0 auto; gap: 6px; width: auto; padding: 8px 10px; border-left: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .side-nav a.active { border-bottom-color: var(--accent); }
+  .side-nav a span { display: none; }
   header.top { padding: 18px 16px 14px; align-items: flex-start; }
   .top h1 { font-size: 20px; }
   .status-pills { gap: 5px; }
