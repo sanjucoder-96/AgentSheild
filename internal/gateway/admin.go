@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"bytes"
-	"crypto/subtle"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -10,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,6 +30,9 @@ func (g *Gateway) Handler(ui fs.FS) http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{"ok": true, "version": Version, "profile": g.cfg.Profile})
 	})
+	mux.HandleFunc("POST /auth/login", g.handleLogin)
+	mux.HandleFunc("POST /auth/logout", g.handleLogout)
+	mux.HandleFunc("GET /auth/me", g.handleMe)
 	mux.Handle("GET /metrics", promhttp.HandlerFor(g.metrics.Registry, promhttp.HandlerOpts{}))
 
 	admin := http.NewServeMux()
@@ -73,23 +76,6 @@ func (g *Gateway) Handler(ui fs.FS) http.Handler {
 		mux.Handle("/", spa(ui))
 	}
 	return mux
-}
-
-func (g *Gateway) requireAdmin(next http.Handler) http.Handler {
-	want := []byte(g.cfg.AdminToken)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got := ""
-		if h := r.Header.Get("Authorization"); strings.HasPrefix(strings.ToLower(h), "bearer ") {
-			got = strings.TrimSpace(h[7:])
-		} else if r.URL.Path == "/admin/ws" {
-			got = r.URL.Query().Get("token") // browsers cannot set headers on WebSockets
-		}
-		if subtle.ConstantTimeCompare([]byte(got), want) != 1 {
-			writeHTTPError(w, http.StatusUnauthorized, "admin token required")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func (g *Gateway) adminState(w http.ResponseWriter, r *http.Request) {
@@ -155,6 +141,12 @@ func (g *Gateway) adminMetrics(w http.ResponseWriter, _ *http.Request) {
 			out.Blocked++
 		case "approval":
 			out.Approval++
+		}
+		if len(rec.Detail) > 0 {
+			var detail map[string]string
+			if json.Unmarshal(rec.Detail, &detail) == nil && detail["approval"] != "" {
+				out.Approval++
+			}
 		}
 		if rec.OverheadMicros > 0 {
 			values = append(values, rec.OverheadMicros)
@@ -364,7 +356,8 @@ func (g *Gateway) adminGeneratePolicy(w http.ResponseWriter, r *http.Request) {
 		writeHTTPError(w, http.StatusBadRequest, "generated Cedar is invalid: "+err.Error()+" | preview: "+preview)
 		return
 	}
-	writeJSON(w, map[string]string{"file": body.File, "cedar": strings.TrimSpace(cedar)})
+	writeJSON(w, map[string]any{"file": body.File, "cedar": strings.TrimSpace(cedar),
+		"warnings": policyWarnings(cedar, body.Source)})
 }
 
 func providerReason(body []byte) string {
@@ -509,8 +502,19 @@ func (g *Gateway) adminRunBench(w http.ResponseWriter, r *http.Request) {
 		benchName += ".exe"
 	}
 	benchPath := filepath.Join(filepath.Dir(exe), benchName)
-	cmd := exec.CommandContext(r.Context(), benchPath, "-profiles", "full", "-repeat", "1")
-	cmd.Dir = filepath.Dir(filepath.Dir(exe))
+	workDir, err := os.Getwd()
+	if err != nil {
+		writeHTTPError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	listen := g.cfg.Listen
+	if strings.HasPrefix(listen, ":") {
+		listen = "127.0.0.1" + listen
+	}
+	cmd := exec.CommandContext(r.Context(), benchPath, "-profiles", "full", "-repeat", "1",
+		"-corpus", filepath.Join(workDir, "bench", "corpus.jsonl"),
+		"-out", g.cfg.ResultsDir, "-gateway", "http://"+listen)
+	cmd.Dir = workDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		writeHTTPError(w, http.StatusBadGateway, "benchmark failed: "+strings.TrimSpace(string(output)))
 		return
@@ -538,4 +542,27 @@ func spa(ui fs.FS) http.Handler {
 		r2.URL.Path = "/"
 		files.ServeHTTP(w, r2)
 	})
+}
+
+var cedarStatement = regexp.MustCompile(`(?s)((?:@\w+\([^)]*\)\s*)*)(permit|forbid)\s*\((.*?)\)\s*(when|unless)?`)
+
+// policyWarnings flags generated Cedar that a reviewer should look at twice:
+// unconditional permits (which bypass the tool allowlist) and replacements
+// that remove forbid rules. Validation already guarantees it compiles.
+func policyWarnings(generated, previous string) []string {
+	warnings := []string{}
+	for _, m := range cedarStatement.FindAllStringSubmatch(generated, -1) {
+		if m[2] == "permit" && m[4] == "" {
+			id := "unnamed"
+			if i := strings.Index(m[1], `@id("`); i >= 0 {
+				id = strings.SplitN(m[1][i+5:], `"`, 2)[0]
+			}
+			warnings = append(warnings, "permit "+id+" has no when-condition: it allows every agent to call every tool (forbid rules still apply)")
+		}
+	}
+	before, after := strings.Count(previous, "forbid"), strings.Count(generated, "forbid")
+	if previous != "" && after < before {
+		warnings = append(warnings, strconv.Itoa(before-after)+" forbid rule(s) from the current file would be removed")
+	}
+	return warnings
 }

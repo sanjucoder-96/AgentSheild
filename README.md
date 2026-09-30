@@ -40,7 +40,7 @@ Two ways to run it. Both need the repo and about a minute.
 
 ```bash
 docker compose up --build
-# dashboard: http://localhost:8080   (admin token: dev-admin-token)
+# dashboard: http://localhost:8080   (development login: admin / admin)
 ```
 
 This starts the gateway, three mock tool servers, the attacker sink, PostgreSQL
@@ -63,7 +63,8 @@ make stop        # stops everything
 ```
 
 Open **http://localhost:8080** for the dashboard (live feed, approvals, tools,
-policies, benchmark, audit). Default admin token: `dev-admin-token`.
+policies, benchmark, audit). Development login: **admin / admin**. Scripts and CI use the
+`ADMIN_TOKEN` bearer header instead (default `dev-admin-token` in development only).
 
 Mint an agent token to drive the gateway yourself:
 
@@ -196,7 +197,11 @@ environment:
 | Variable | Purpose | Dev default |
 |---|---|---|
 | `GATEWAY_JWT_SECRET` | signs dev agent tokens | `dev-jwt-secret-change-me` |
-| `ADMIN_TOKEN` | protects the admin API and dashboard | `dev-admin-token` |
+| `ADMIN_TOKEN` | bearer token for scripts, CI and the demo | `dev-admin-token` |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | dashboard login (or `ADMIN_PASSWORD_HASH` from `gatewayctl hash-password`) | `admin` / `admin` |
+| `SESSION_SECRET` | signs dashboard session cookies | `dev-session-secret-change-me` |
+| `GATEWAY_ENV` | `production` refuses to start with any default or weak secret | unset |
+| `TRUST_PROXY` | trust `X-Forwarded-For/-Proto` from Caddy | unset |
 | `TOOL_SHARED_SECRET` | the credential the gateway sends upstream | `dev-tool-secret-change-me` |
 | `DATABASE_URL` | Postgres audit log (optional; file log otherwise) | unset |
 | `REDIS_URL` | Redis sessions + kill switch (optional; memory otherwise) | unset |
@@ -208,6 +213,36 @@ environment:
 Change the dev secrets before running anything real.
 
 ---
+
+## Level 3: security and deployment
+
+The Level 3 requirements, and where each one lives:
+
+| Requirement | Implementation | Where |
+|---|---|---|
+| AI features | Groq turns English into Cedar policies (validated by Cedar, reviewed by a human, never auto-saved; risky output is flagged). A Groq-driven agent console lets a real model get hijacked live. | `internal/gateway/admin.go`, dashboard Policies + Agent |
+| Authentication | Dashboard login: bcrypt password, signed `HttpOnly; Secure; SameSite=Strict` session cookie, CSRF header on every change, 5-per-minute login throttle, failed logins audited. Agents: short-lived signed tokens. | `internal/auth/session.go`, `internal/gateway/session_http.go` |
+| Encryption | HTTPS via Caddy + Let's Encrypt with HSTS and a strict CSP; gateway→RDS over TLS with certificate verification (`sslmode=verify-full`); RDS and EBS encrypted at rest. | `deploy/Caddyfile`, `docs/DEPLOY_AWS.md` |
+| Secure configuration | `GATEWAY_ENV=production` **refuses to start** if any secret is a default or shorter than 32 characters. Secrets live only in the server's `.env` and GitHub Secrets. | `internal/config/config.go` |
+| CI/CD | GitHub Actions: vet, unit tests, `govulncheck`, sandbox tests, dashboard build → images to GHCR → deploy to EC2 over SSH. Every action pinned by commit SHA. | `.github/workflows/ci-cd.yml` |
+| Cloud launch | One EC2 host (Docker Compose) + Amazon RDS PostgreSQL. Only Caddy is exposed; tool servers are read-only, non-root, capability-free containers on a network with **no internet route** (the execution harness). | `deploy/`, `docs/DEPLOY_AWS.md` |
+
+Deploy guide: **[docs/DEPLOY_AWS.md](docs/DEPLOY_AWS.md)**. What changed in this round:
+**[docs/LEVEL3_CHANGES.md](docs/LEVEL3_CHANGES.md)**.
+
+## Scope: implemented vs. next
+
+| Implemented and tested | Next (Level 4 and beyond) |
+|---|---|
+| MCP proxy, strict parsing, canonicalization, schema validation | Kubernetes with autoscaling (HPA) |
+| Destination, SSRF, path, command, SQL and secret checks | Grafana dashboards and alert rules on the existing Prometheus metrics |
+| Cross-call taint / provenance rule | Load test for throughput (RPS) |
+| Cedar policies, hot reload, approval gate, kill switch | ML prompt-injection classifier (PromptGuard 2) as escalate-only |
+| Manifest pinning and rug-pull quarantine | gVisor sandbox, mTLS gateway ↔ tools |
+| Signed hash-chained audit log (file or Postgres/RDS) | OpenTelemetry tracing; OIDC/Keycloak end-to-end |
+| Dashboard login, CSRF, HTTPS, production secret guard | |
+| Hardened tool containers without internet access | |
+| CI/CD to EC2, RDS over verified TLS | |
 
 ## Roadmap
 

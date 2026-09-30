@@ -2,29 +2,75 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
-// The admin token gates the API. In dev it defaults to dev-admin-token; the
-// operator can paste a different one. It is kept only in this browser tab.
-function useToken() {
-  const [token, setToken] = useState(() => sessionStorage.getItem("gw_admin") || "dev-admin-token");
-  const save = (t) => { sessionStorage.setItem("gw_admin", t); setToken(t); };
-  return [token, save];
+// People sign in with a username and password; the gateway sets an HttpOnly
+// session cookie that JavaScript never sees. Every state-changing request
+// carries the X-Aegis-CSRF header, which other websites cannot add.
+const CSRF = { "X-Aegis-CSRF": "1" };
+
+function api(onUnauthorized) {
+  const base = { credentials: "same-origin" };
+  const check = async (r) => {
+    if (r.status === 401) { onUnauthorized?.(); throw new Error("Session expired: please log in again"); }
+    const value = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(value.error || `Request failed: HTTP ${r.status}`);
+    return value;
+  };
+  return {
+    get: (p) => fetch(p, base).then(check),
+    post: (p, body) => fetch(p, { ...base, method: "POST", headers: { ...CSRF, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).then(check),
+    del: (p) => fetch(p, { ...base, method: "DELETE", headers: CSRF }).then(check),
+    put: (p, body) => fetch(p, { ...base, method: "PUT", headers: { ...CSRF, "Content-Type": "text/plain" }, body }).then(check),
+  };
 }
 
-function api(token) {
-  const headers = { Authorization: `Bearer ${token}` };
-  return {
-    get: (p) => fetch(p, { headers }).then((r) => (r.ok ? r.json() : Promise.reject(r))),
-    post: (p, body) => fetch(p, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => { const value = await r.json(); if (!r.ok) throw new Error(value.error || `Request failed: HTTP ${r.status}`); return value; }),
-    del: (p) => fetch(p, { method: "DELETE", headers }).then(async (r) => { const value = await r.json(); if (!r.ok) throw new Error(value.error || `Request failed: HTTP ${r.status}`); return value; }),
-    put: (p, body) => fetch(p, { method: "PUT", headers: { ...headers, "Content-Type": "text/plain" }, body }).then((r) => r.json()),
+function App() {
+  const [user, setUser] = useState(undefined); // undefined = checking, null = signed out
+  useEffect(() => {
+    fetch("/auth/me", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null)).then((v) => setUser(v?.user || null)).catch(() => setUser(null));
+  }, []);
+  const signOut = useCallback(() => setUser(null), []);
+  if (user === undefined) return <div className="login-screen"><div className="login-card">Checking session…</div></div>;
+  if (!user) return <Login onLogin={setUser} />;
+  return <Console user={user} onLogout={signOut} />;
+}
+
+function Login({ onLogin }) {
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async (event) => {
+    event.preventDefault();
+    setBusy(true); setError("");
+    try {
+      const r = await fetch("/auth/login", { method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+      const v = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(v.error || `Login failed (HTTP ${r.status})`);
+      onLogin(v.user);
+    } catch (e) { setError(e.message); setPassword(""); } finally { setBusy(false); }
   };
+  return (
+    <div className="login-screen">
+      <form className="login-card" onSubmit={submit}>
+        <div className="brand-mark">AS</div>
+        <h1>AgentShield</h1>
+        <p className="login-sub">Secure Agent Tool Gateway · administrator sign-in</p>
+        <label>Username<input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} /></label>
+        <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus /></label>
+        {error && <div className="login-error">{error}</div>}
+        <button className="act approve" type="submit" disabled={busy || !password}>{busy ? "Signing in…" : "Sign in"}</button>
+        <p className="login-foot">Session cookie: HttpOnly · SameSite=Strict · Secure over HTTPS · 8 h</p>
+      </form>
+    </div>
+  );
 }
 
 const VERDICT_LABEL = { allow: "ALLOW", deny: "DENY", approval: "APPROVE?", error: "ERROR" };
 
-function App() {
-  const [token, setToken] = useToken();
-  const client = useMemo(() => api(token), [token]);
+function Console({ user, onLogout }) {
+  const client = useMemo(() => api(onLogout), [onLogout]);
   const tabFromLocation = () => location.pathname === "/agent" ? "agent" : "live";
   const [tab, setTab] = useState(tabFromLocation);
   const [state, setState] = useState(null);
@@ -70,7 +116,7 @@ function App() {
     function connect() {
       if (stop) return;
       const proto = location.protocol === "https:" ? "wss" : "ws";
-      const ws = new WebSocket(`${proto}://${location.host}/admin/ws?token=${encodeURIComponent(token)}`);
+      const ws = new WebSocket(`${proto}://${location.host}/admin/ws`); // session cookie authenticates
       wsRef.current = ws;
       ws.onopen = () => setConnected(true);
       ws.onclose = () => { setConnected(false); if (!stop) setTimeout(connect, 1500); };
@@ -88,7 +134,7 @@ function App() {
     }
     connect();
     return () => { stop = true; wsRef.current?.close(); };
-  }, [token, refreshState]);
+  }, [refreshState]);
 
   return (
     <div className="app">
@@ -109,7 +155,7 @@ function App() {
           <div><div className="eyebrow">SECURITY OPERATIONS / {tab.toUpperCase()}</div><h1>{navItems.find(([id]) => id === tab)?.[1] || "Live feed"}</h1></div>
           <div className="status-pills">
             {state && <span className="system-chip"><i className="signal-dot on"></i> {state.profile} / {state.policies_loaded} policies</span>}
-            <TokenBox token={token} setToken={setToken} />
+            <UserBox user={user} onLogout={onLogout} />
           </div>
         </header>
         <div className="status-strip"><span><i className={"signal-dot " + (connected ? "on" : "")}></i> STREAM {connected ? "CONNECTED" : "RECONNECTING"}</span><span>UPSTREAMS {state ? Object.keys(state.upstreams || {}).length : "--"}</span><span>AUDIT {state?.audit_backend?.split(":")[0]?.toUpperCase() || "--"}</span><span className="strip-right">ZERO TRUST / DENY BY DEFAULT</span></div>
@@ -243,16 +289,12 @@ function Agent({ client }) {
   );
 }
 
-function TokenBox({ token, setToken }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(token);
-  if (!editing) return <span className="pill" onClick={() => setEditing(true)} style={{ cursor: "pointer" }}>admin token ✎</span>;
-  return (
-    <span className="pill">
-      <input value={val} onChange={(e) => setVal(e.target.value)} style={{ background: "transparent", border: "none", color: "inherit", font: "inherit", width: 120 }} />
-      <button className="act" style={{ padding: "1px 8px", marginLeft: 6 }} onClick={() => { setToken(val); setEditing(false); }}>set</button>
-    </span>
-  );
+function UserBox({ user, onLogout }) {
+  const logout = async () => {
+    await fetch("/auth/logout", { method: "POST", credentials: "same-origin", headers: CSRF }).catch(() => {});
+    onLogout();
+  };
+  return <span className="system-chip">{user}<button className="act" style={{ padding: "1px 8px", marginLeft: 8 }} onClick={logout}>Log out</button></span>;
 }
 
 function verdictClass(v) { return "verdict " + v; }
@@ -401,7 +443,8 @@ function Policies({ client }) {
   const generate = async () => {
     try {
       const result = await client.post("/admin/policies/generate", { file, prompt, source: status.files?.[file] || "" });
-      setGenerated(result.cedar); setMessage("Groq generated a complete validated Cedar replacement.");
+      setGenerated(result.cedar);
+      setMessage(result.warnings?.length ? "⚠ Review before saving: " + result.warnings.join(" · ") : "Groq generated a complete, validated Cedar replacement. Review it, then save.");
     } catch (error) { setMessage(error.message); }
   };
   const saveGenerated = async () => {
@@ -453,16 +496,20 @@ function PolicyEditor({ name, text, client, onSaved }) {
   const [msg, setMsg] = useState("");
   const [open, setOpen] = useState(false);
   const save = async () => {
-    const res = await client.put(`/admin/policies/${name}`, val);
-    if (res.last_error) setMsg("rejected: " + res.last_error);
-    else { setMsg("saved · reloaded"); onSaved?.(); }
-    setTimeout(() => setMsg(""), 4000);
+    try {
+      const res = await client.put(`/admin/policies/${name}`, val);
+      if (res.last_error) setMsg("rejected: " + res.last_error);
+      else { setMsg("saved · reloaded"); onSaved?.(); }
+    } catch (error) { setMsg("rejected: " + error.message); }
+    setTimeout(() => setMsg(""), 6000);
   };
   const remove = async () => {
     if (!window.confirm(`Delete complete policy file ${name}?`)) return;
-    const res = await client.del(`/admin/policies/${name}`);
-    if (res.last_error) setMsg("rejected: " + res.last_error);
-    else { setMsg("deleted · reloaded"); onSaved?.(); }
+    try {
+      const res = await client.del(`/admin/policies/${name}`);
+      if (res.last_error) setMsg("rejected: " + res.last_error);
+      else { setMsg("deleted · reloaded"); onSaved?.(); }
+    } catch (error) { setMsg("rejected: " + error.message); }
   };
   return (
     <details className="policy-file" open={open} onToggle={(e) => setOpen(e.target.open)}>

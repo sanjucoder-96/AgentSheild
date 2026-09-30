@@ -115,6 +115,14 @@ def run_shell(command: str) -> str:
         return f"Command rejected: {exc}"
     if not argv or argv[0] not in {"pwd", "ls", "echo", "cat"}:
         return "Command rejected by the sandbox allowlist."
+    if argv[0] in {"ls", "cat"}:
+        # Every path argument must resolve inside the sandbox. Without this,
+        # `cat ../../.env` or `cat /proc/self/environ` would read secrets.
+        for arg in argv[1:]:
+            if arg.startswith("-"):
+                continue
+            if _inside_sandbox(arg) is None:
+                return f"Command rejected: {arg} is outside the workspace sandbox."
     try:
         result = subprocess.run(argv, cwd=SANDBOX, capture_output=True, text=True, timeout=3, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:

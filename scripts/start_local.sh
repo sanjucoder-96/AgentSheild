@@ -37,7 +37,7 @@ echo
 launch gateway ./bin/gateway -config "${GATEWAY_CONFIG:-config/gateway.yaml}"
 for _ in $(seq 1 40); do
   if curl -s -o /dev/null http://127.0.0.1:8080/healthz; then
-    echo "gateway ready: dashboard http://localhost:8080  (admin token: \${ADMIN_TOKEN:-dev-admin-token})"
+    echo "gateway ready: dashboard http://localhost:8080  (development login: admin / admin)"
     exit 0
   fi
   sleep 0.5

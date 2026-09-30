@@ -8,11 +8,13 @@ package main
 import (
 	"bufio"
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +31,16 @@ func main() {
 	switch os.Args[1] {
 	case "token":
 		token(os.Args[2:])
+	case "hash-password":
+		hashPassword(os.Args[2:])
+	case "gen-secret":
+		b := make([]byte, 32)
+		if _, err := rand.Read(b); err != nil {
+			fail(err)
+		}
+		fmt.Println(hex.EncodeToString(b))
+	case "health":
+		health(os.Args[2:])
 	case "audit":
 		if len(os.Args) < 3 {
 			usage()
@@ -49,6 +61,9 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   gatewayctl token --agent <id> [--ttl 8h]
+  gatewayctl hash-password            (reads the password from stdin)
+  gatewayctl gen-secret               (prints a random 64-hex-char secret)
+  gatewayctl health [--url URL]       (exit 0 if the gateway is healthy)
   gatewayctl audit verify [--state-dir state]
   gatewayctl audit tamper --seq <n> [--state-dir state]`)
 	os.Exit(2)
@@ -167,4 +182,35 @@ func readLines(path string) []string {
 func fail(err error) {
 	fmt.Fprintln(os.Stderr, "error:", err)
 	os.Exit(1)
+}
+
+func hashPassword(args []string) {
+	_ = args
+	reader := bufio.NewReader(os.Stdin)
+	pw, _ := reader.ReadString('\n')
+	pw = strings.TrimRight(pw, "\r\n")
+	if len(pw) < 12 {
+		fail(fmt.Errorf("use at least 12 characters"))
+	}
+	h, err := auth.HashPassword(pw)
+	if err != nil {
+		fail(err)
+	}
+	fmt.Println(h)
+}
+
+func health(args []string) {
+	fs := flag.NewFlagSet("health", flag.ExitOnError)
+	url := fs.String("url", "http://127.0.0.1:8080/healthz", "health endpoint")
+	_ = fs.Parse(args)
+	c := &http.Client{Timeout: 3 * time.Second}
+	resp, err := c.Get(*url)
+	if err != nil {
+		fail(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		fail(fmt.Errorf("unhealthy: HTTP %d", resp.StatusCode))
+	}
+	fmt.Println("ok")
 }

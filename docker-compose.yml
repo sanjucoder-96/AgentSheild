@@ -1,12 +1,15 @@
-# Full stack: gateway + three tool servers + attacker sink + Postgres + Redis.
-# Secrets here are DEV defaults. Change them for anything real.
+# Local development stack: gateway + three tool servers + attacker sink +
+# Postgres + Redis. Plain HTTP, development secrets. NOT for a public server
+# (use deploy/docker-compose.prod.yml for that).
 #
-#   docker compose up --build          start everything
-#   docker compose --profile demo up    also run the attacker sink
+#   docker compose up --build -d      build and start everything
+#   open http://localhost:8080        login: admin / admin
+#   docker compose down               stop (add -v to also wipe data)
 #
-# Dashboard: http://localhost:8080  (admin token below)
+# Optional: put MODEL_API_KEY=gsk_... in a .env file next to this one to
+# enable the Groq features.
 
-name: pnc3-gateway
+name: agentshield-dev
 
 x-tool-env: &tool-env
   TOOL_HOST: 0.0.0.0
@@ -20,14 +23,28 @@ services:
     environment:
       GATEWAY_LISTEN: ":8080"
       GATEWAY_PROFILE: full
+      GATEWAY_CONFIG: /app/config/gateway.docker.yaml
+      GATEWAY_STATE_DIR: /app/state
       GATEWAY_JWT_SECRET: dev-jwt-secret-change-me
       ADMIN_TOKEN: dev-admin-token
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      SESSION_SECRET: dev-session-secret-change-me
       TOOL_SHARED_SECRET: dev-tool-secret-change-me
       DATABASE_URL: postgres://gateway:gateway@postgres:5432/gateway?sslmode=disable
       REDIS_URL: redis://redis:6379/0
-      GATEWAY_STATE_DIR: /app/state
-      GATEWAY_CONFIG: /app/config/gateway.docker.yaml
-    volumes: ["gateway-state:/app/state", "./config:/app/config:ro", "./results:/app/results"]
+      MODEL_API_KEY: ${MODEL_API_KEY:-}
+      MODEL_ENDPOINT: ${MODEL_ENDPOINT:-https://api.groq.com/openai/v1/chat/completions}
+      MODEL_NAME: ${MODEL_NAME:-openai/gpt-oss-20b}
+    volumes:
+      - gateway-state:/app/state
+      - gateway-results:/app/results
+      - gateway-policies:/app/config/policies
+    healthcheck:
+      test: ["CMD", "/app/bin/gatewayctl", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
@@ -37,22 +54,28 @@ services:
 
   workspace:
     build: { context: ., dockerfile: tools/Dockerfile }
-    command: python tools/workspace_server.py
+    image: agentshield-tools:dev
+    command: ["python", "tools/workspace_server.py"]
     environment: { <<: *tool-env, TOOL_PORT: "8101" }
+    ports: ["8101:8101"]          # exposed only so the demo's rug-pull step works from your laptop
   comms:
-    build: { context: ., dockerfile: tools/Dockerfile }
-    command: python tools/comms_server.py
+    image: agentshield-tools:dev
+    command: ["python", "tools/comms_server.py"]
     environment: { <<: *tool-env, TOOL_PORT: "8102" }
+    ports: ["8102:8102"]
+    depends_on: [workspace]
   crm:
-    build: { context: ., dockerfile: tools/Dockerfile }
-    command: python tools/crm_server.py
+    image: agentshield-tools:dev
+    command: ["python", "tools/crm_server.py"]
     environment: { <<: *tool-env, TOOL_PORT: "8103" }
-
+    ports: ["8103:8103"]
+    depends_on: [workspace]
   attacker:
-    build: { context: ., dockerfile: tools/Dockerfile }
-    command: python attacker/attacker_server.py
+    image: agentshield-tools:dev
+    command: ["python", "attacker/attacker_server.py"]
     environment: { ATTACKER_HOST: 0.0.0.0 }
-    ports: ["9999:9999"]
+    ports: ["9999:9999"]          # http://localhost:9999 shows anything that leaked
+    depends_on: [workspace]
 
   postgres:
     image: postgres:16-alpine
@@ -72,4 +95,6 @@ services:
 
 volumes:
   gateway-state:
+  gateway-results:
+  gateway-policies:
   pg-data:

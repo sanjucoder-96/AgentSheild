@@ -1,5 +1,4 @@
 package policy
-package policy
 
 import (
 	"os"

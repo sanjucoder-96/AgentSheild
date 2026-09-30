@@ -201,8 +201,12 @@ func (r *Redis) AddPrivate(ctx context.Context, id string, v []string) error {
 	return r.add(ctx, id, "private", "private", v)
 }
 
-func (r *Redis) Revoke(ctx context.Context, a string) error  { return r.c.SAdd(ctx, revokedKey, a).Err() }
-func (r *Redis) Restore(ctx context.Context, a string) error { return r.c.SRem(ctx, revokedKey, a).Err() }
+func (r *Redis) Revoke(ctx context.Context, a string) error {
+	return r.c.SAdd(ctx, revokedKey, a).Err()
+}
+func (r *Redis) Restore(ctx context.Context, a string) error {
+	return r.c.SRem(ctx, revokedKey, a).Err()
+}
 
 func (r *Redis) IsRevoked(ctx context.Context, a string) (bool, error) {
 	return r.c.SIsMember(ctx, revokedKey, a).Result()

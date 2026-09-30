@@ -26,8 +26,9 @@ build-fast: ## Build binaries without rebuilding the dashboard
 	$(GO) build -o bin/gatewayctl ./cmd/gatewayctl
 	$(GO) build -o bin/bench ./cmd/bench
 
-test: ## Run Go unit tests
+test: ## Run Go unit tests and tool sandbox tests
 	$(GO) test ./...
+	$(PYTHON) tools/test_workspace.py
 
 fuzz: ## Fuzz the canonicalizer for 30s
 	$(GO) test ./internal/canon -run=xxx -fuzz=FuzzExpand -fuzztime=30s

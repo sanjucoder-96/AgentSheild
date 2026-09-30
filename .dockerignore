@@ -1,0 +1,16 @@
+.git
+.env
+**/.env
+bin
+state
+results
+logs
+web/node_modules
+web/dist
+tools/__pycache__
+tools/sandbox
+tools/crm.sqlite3
+deploy/certs
+deploy/release.env
+*.pid
+*.txt.u8

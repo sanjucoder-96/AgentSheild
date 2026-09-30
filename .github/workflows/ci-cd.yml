@@ -1,0 +1,155 @@
+# AgentShield CI/CD
+#   test    -> vet, unit tests, vulnerability scan, tool sandbox tests, dashboard build
+#   images  -> build both images and push them to GitHub Container Registry (GHCR)
+#   deploy  -> copy deploy/ to the EC2 host and roll out the new images
+#
+# Every third-party action is pinned to a full commit SHA, not a tag. Tags can be
+# moved by whoever controls the repository; the March 2026 TeamPCP campaign
+# abused exactly that with compromised GitHub Actions.
+#
+# Deploy runs only when the repository variable DEPLOY_ENABLED is "true" and the
+# `production` environment has these secrets: EC2_HOST, EC2_USER, EC2_SSH_KEY.
+
+name: ci-cd
+
+on:
+  push:
+    branches: [main, V1-WorkingCopy]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go unit tests
+        run: go test ./...
+
+      - name: Vulnerability scan (govulncheck)
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Tool server sandbox tests
+        run: |
+          pip install -r tools/requirements.txt
+          python -m py_compile tools/*.py attacker/*.py demo/*.py
+          python tools/test_workspace.py
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+
+      - name: Dashboard build
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+  images:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      owner: ${{ steps.meta.outputs.owner }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - id: meta
+        name: Image owner (GHCR names must be lowercase)
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push gateway image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.owner }}/aegis-gateway:${{ github.sha }}
+            ghcr.io/${{ steps.meta.outputs.owner }}/aegis-gateway:latest
+          cache-from: type=gha,scope=gateway
+          cache-to: type=gha,mode=max,scope=gateway
+
+      - name: Build and push tools image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: tools/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.owner }}/aegis-tools:${{ github.sha }}
+            ghcr.io/${{ steps.meta.outputs.owner }}/aegis-tools:latest
+          cache-from: type=gha,scope=tools
+          cache-to: type=gha,mode=max,scope=tools
+
+  deploy:
+    needs: images
+    if: github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Copy deploy files to the server
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "deploy/docker-compose.prod.yml,deploy/docker-compose.build.yml,deploy/Caddyfile,deploy/deploy.sh,deploy/check_rds.sh,deploy/demo_rugpull.sh,deploy/.env.example"
+          target: /opt/aegis
+          strip_components: 1
+
+      - name: Pull the new images and restart
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          TAG: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: TAG,GHCR_USER,GHCR_TOKEN
+          command_timeout: 15m
+          script: |
+            set -e
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            cd /opt/aegis && chmod +x deploy.sh check_rds.sh demo_rugpull.sh
+            ./deploy.sh "$TAG"
+            docker logout ghcr.io
