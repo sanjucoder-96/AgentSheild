@@ -65,6 +65,15 @@ type Config struct {
 	ToolSharedSecret string `yaml:"-"`
 	DatabaseURL      string `yaml:"-"`
 	RedisURL         string `yaml:"-"`
+	ModelEndpoint    string `yaml:"-"`
+	Env              string `yaml:"-"` // "production" enables the startup secret guard
+	AdminUsername    string `yaml:"-"`
+	AdminPassword    string `yaml:"-"` // plain (hashed in memory at start) ...
+	AdminPassHash    string `yaml:"-"` // ... or a bcrypt hash ("b64:" prefix allowed)
+	SessionSecret    string `yaml:"-"`
+	TrustProxy       bool   `yaml:"-"` // behind Caddy: trust X-Forwarded-For / -Proto
+	ModelAPIKey      string `yaml:"-"`
+	ModelName        string `yaml:"-"`
 }
 
 type Auth struct {
@@ -93,12 +102,15 @@ type Destinations struct {
 }
 
 type Tool struct {
-	Server         string            `yaml:"server"`
-	Destructive    bool              `yaml:"destructive"`
-	SendsExternal  bool              `yaml:"sends_external"`
-	ReadsUntrusted bool              `yaml:"reads_untrusted"`
-	ReadsPrivate   bool              `yaml:"reads_private"`
-	Args           map[string]string `yaml:"args"`
+	Server          string            `yaml:"server"`
+	AllowedAgents   []string          `yaml:"allowed_agents"`
+	MaxArgsBytes    int64             `yaml:"max_args_bytes"`
+	RequireApproval bool              `yaml:"require_approval"`
+	Destructive     bool              `yaml:"destructive"`
+	SendsExternal   bool              `yaml:"sends_external"`
+	ReadsUntrusted  bool              `yaml:"reads_untrusted"`
+	ReadsPrivate    bool              `yaml:"reads_private"`
+	Args            map[string]string `yaml:"args"`
 }
 
 func Load(path string) (*Config, error) {
@@ -130,6 +142,18 @@ func (c *Config) applyEnv() {
 	c.ToolSharedSecret = envOr("TOOL_SHARED_SECRET", "dev-tool-secret-change-me")
 	c.DatabaseURL = os.Getenv("DATABASE_URL")
 	c.RedisURL = os.Getenv("REDIS_URL")
+	c.Env = strings.ToLower(os.Getenv("GATEWAY_ENV"))
+	c.AdminUsername = envOr("ADMIN_USERNAME", "admin")
+	c.AdminPassword = os.Getenv("ADMIN_PASSWORD")
+	c.AdminPassHash = os.Getenv("ADMIN_PASSWORD_HASH")
+	c.SessionSecret = envOr("SESSION_SECRET", "dev-session-secret-change-me")
+	c.TrustProxy = os.Getenv("TRUST_PROXY") == "true"
+	if c.AdminPassword == "" && c.AdminPassHash == "" && c.Env != "production" {
+		c.AdminPassword = "admin" // local development only; production refuses to start without one
+	}
+	c.ModelEndpoint = envOr("MODEL_ENDPOINT", "https://api.groq.com/openai/v1/chat/completions")
+	c.ModelAPIKey = os.Getenv("MODEL_API_KEY")
+	c.ModelName = envOr("MODEL_NAME", "openai/gpt-oss-20b")
 }
 
 func (c *Config) applyDefaults() {
@@ -166,9 +190,43 @@ func (c *Config) applyDefaults() {
 	if c.RateLimitPerMinute == 0 {
 		c.RateLimitPerMinute = 600
 	}
+	for name, tool := range c.Tools {
+		if tool.MaxArgsBytes == 0 {
+			tool.MaxArgsBytes = 64 << 10
+		}
+		c.Tools[name] = tool
+	}
+}
+
+// ProductionProblems lists unsafe settings. In production the gateway refuses
+// to start while any of these remain, so a forgotten default secret can never
+// reach a public server.
+func (c *Config) ProductionProblems() []string {
+	var out []string
+	weak := func(name, v string) {
+		if strings.HasPrefix(v, "dev-") || len(v) < 32 {
+			out = append(out, name+" must be a random value of at least 32 characters")
+		}
+	}
+	weak("GATEWAY_JWT_SECRET", c.JWTSecret)
+	weak("ADMIN_TOKEN", c.AdminToken)
+	weak("TOOL_SHARED_SECRET", c.ToolSharedSecret)
+	weak("SESSION_SECRET", c.SessionSecret)
+	if c.AdminPassHash == "" && len(c.AdminPassword) < 12 {
+		out = append(out, "ADMIN_PASSWORD (12+ characters) or ADMIN_PASSWORD_HASH is required")
+	}
+	if c.AdminPassword == "admin" {
+		out = append(out, "ADMIN_PASSWORD must not be the development default")
+	}
+	return out
 }
 
 func (c *Config) validate() error {
+	if c.Env == "production" {
+		if p := c.ProductionProblems(); len(p) > 0 {
+			return fmt.Errorf("refusing to start in production with unsafe settings:\n  - %s", strings.Join(p, "\n  - "))
+		}
+	}
 	switch c.Profile {
 	case ProfileFull, ProfileAllowlistOnly, ProfileOff:
 	default:

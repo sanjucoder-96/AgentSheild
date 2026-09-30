@@ -38,6 +38,8 @@ type Gateway struct {
 	hub       *Hub
 	metrics   *Metrics
 
+	admin       *auth.Admin
+	loginLimits sync.Map // client ip -> *rate.Limiter
 	mcpSessions sync.Map // session id -> agent id
 	limiters    sync.Map // agent id -> *rate.Limiter
 	lastRefresh time.Time
@@ -54,12 +56,13 @@ type Deps struct {
 	Sessions  session.Store
 	Audit     audit.Store
 	Signer    *audit.Signer
+	Admin     *auth.Admin
 }
 
 func New(d Deps) *Gateway {
 	g := &Gateway{
 		cfg: d.Config, log: d.Logger, auth: d.Auth, policy: d.Policy, registry: d.Registry,
-		upstreams: d.Upstreams, sessions: d.Sessions, audit: d.Audit, signer: d.Signer,
+		upstreams: d.Upstreams, sessions: d.Sessions, audit: d.Audit, signer: d.Signer, admin: d.Admin,
 		approvals: approval.NewBroker(), inspector: inspect.New(d.Config), hub: NewHub(), metrics: NewMetrics(),
 	}
 	g.approvals.OnChange = func() { g.hub.Broadcast("approvals", g.approvals.List()) }
@@ -150,4 +153,5 @@ func (g *Gateway) PolicyReloaded(err error) {
 		g.event("policy", "", "", "reloaded", "policies reloaded from disk", nil)
 	}
 	g.hub.Broadcast("policies", g.policy.Status())
+	g.hub.Broadcast("tools", g.registry.All())
 }

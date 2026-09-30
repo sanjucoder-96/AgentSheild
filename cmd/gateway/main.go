@@ -51,7 +51,17 @@ func run(cfgPath string, log *slog.Logger) error {
 	}
 	var store audit.Store
 	if cfg.DatabaseURL != "" {
-		store, err = audit.NewPGStore(ctx, cfg.DatabaseURL, signer)
+		// The database may still be starting (or briefly unreachable): retry for
+		// up to a minute instead of crash-looping.
+		deadline := time.Now().Add(60 * time.Second)
+		for attempt := 1; ; attempt++ {
+			store, err = audit.NewPGStore(ctx, cfg.DatabaseURL, signer)
+			if err == nil || time.Now().After(deadline) || ctx.Err() != nil {
+				break
+			}
+			log.Warn("audit database not reachable yet; retrying", "attempt", attempt, "err", err)
+			time.Sleep(3 * time.Second)
+		}
 	} else {
 		store, err = audit.NewFileStore(cfg.StateDir, signer)
 	}
@@ -74,6 +84,13 @@ func run(cfgPath string, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	admin, err := auth.NewAdmin(cfg.AdminUsername, cfg.AdminPassword, cfg.AdminPassHash, cfg.SessionSecret)
+	if err != nil {
+		return err
+	}
+	if cfg.Env == "production" && cfg.DatabaseURL == "" {
+		log.Warn("production without DATABASE_URL: the audit log is a local file, not the managed database")
+	}
 	registry, err := manifest.NewRegistry(cfg)
 	if err != nil {
 		return err
@@ -81,7 +98,7 @@ func run(cfgPath string, log *slog.Logger) error {
 
 	g := gateway.New(gateway.Deps{
 		Config: cfg, Logger: log, Auth: verifier, Policy: engine, Registry: registry,
-		Upstreams: upstream.NewPool(cfg, gateway.Version), Sessions: sessions, Audit: store, Signer: signer,
+		Upstreams: upstream.NewPool(cfg, gateway.Version), Sessions: sessions, Audit: store, Signer: signer, Admin: admin,
 	})
 	if err := engine.Watch(func(err error) {
 		if err != nil {
@@ -98,7 +115,7 @@ func run(cfgPath string, log *slog.Logger) error {
 	ui := web.Dist()
 	srv := &http.Server{Addr: cfg.Listen, Handler: g.Handler(ui), ReadHeaderTimeout: 10 * time.Second}
 	log.Info("secure agent tool gateway listening",
-		"addr", cfg.Listen, "profile", cfg.Profile, "audit", store.Backend(), "sessions", sessions.Backend(),
+		"addr", cfg.Listen, "env", cfg.Env, "profile", cfg.Profile, "audit", store.Backend(), "sessions", sessions.Backend(),
 		"policies", len(engine.Status().Policies), "dashboard", ui != nil)
 
 	errCh := make(chan error, 1)

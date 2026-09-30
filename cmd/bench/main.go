@@ -178,8 +178,8 @@ func runProfile(profile string, cases []Case) ProfileResult {
 
 // callResult is what the bench learns from one tool call.
 type callResult struct {
-	blocked   bool   // the gateway refused the call
-	contained bool   // the payload never reached the tool (blocked, or tool reported no real effect)
+	blocked   bool // the gateway refused the call
+	contained bool // the payload never reached the tool (blocked, or tool reported no real effect)
 	sessionID string
 	overhead  int64
 	text      string

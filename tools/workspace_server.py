@@ -11,6 +11,8 @@ folder and the shell only reports what it *would* have run.
 from __future__ import annotations
 
 import os
+import shlex
+import subprocess
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
@@ -106,8 +108,26 @@ def write_file(path: str, content: str) -> str:
 
 @server.tool()
 def run_shell(command: str) -> str:
-    """Run a shell command in the workspace. (Simulated in this demo.)"""
-    return f"SIMULATED: would have executed `{command}` in the workspace container."
+    """Run a small safe command set in the isolated workspace directory."""
+    try:
+        argv = shlex.split(command)
+    except ValueError as exc:
+        return f"Command rejected: {exc}"
+    if not argv or argv[0] not in {"pwd", "ls", "echo", "cat"}:
+        return "Command rejected by the sandbox allowlist."
+    if argv[0] in {"ls", "cat"}:
+        # Every path argument must resolve inside the sandbox. Without this,
+        # `cat ../../.env` or `cat /proc/self/environ` would read secrets.
+        for arg in argv[1:]:
+            if arg.startswith("-"):
+                continue
+            if _inside_sandbox(arg) is None:
+                return f"Command rejected: {arg} is outside the workspace sandbox."
+    try:
+        result = subprocess.run(argv, cwd=SANDBOX, capture_output=True, text=True, timeout=3, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"Command failed in sandbox: {exc}"
+    return (result.stdout or result.stderr).strip()
 
 
 if __name__ == "__main__":

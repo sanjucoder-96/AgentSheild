@@ -1,0 +1,138 @@
+# AgentShield — production stack for a single EC2 host.
+#
+#   internet ──443──▶ caddy ──▶ gateway ──▶ workspace / comms / crm   (no internet)
+#                                  │   └──▶ redis                       (no internet)
+#                                  └──TLS──▶ Amazon RDS PostgreSQL     (audit log)
+#
+# Start with deploy.sh (it sets GATEWAY_IMAGE / TOOLS_IMAGE). Only Caddy publishes
+# ports. Tool servers and Redis live on an internal network with no route out,
+# so even a fully compromised tool cannot reach the internet.
+
+name: aegis
+
+x-hardened: &hardened
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 128
+  mem_limit: 256m
+  networks: [internal]
+
+x-tool-env: &tool-env
+  TOOL_SHARED_SECRET: ${TOOL_SHARED_SECRET:?set TOOL_SHARED_SECRET in .env}
+  ATTACKER_URL: http://attacker:9999
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      UPSTREAM: gateway:8080
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+    depends_on: [gateway]                 # Caddy returns 502 until the gateway is ready
+
+  gateway:
+    image: ${GATEWAY_IMAGE:?run ./deploy.sh}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    env_file: [.env]
+    environment:
+      GATEWAY_ENV: production
+      GATEWAY_CONFIG: /app/config/gateway.docker.yaml
+      GATEWAY_STATE_DIR: /app/state
+      GATEWAY_LISTEN: ":8080"
+      TRUST_PROXY: "true"
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
+    volumes:
+      - gateway-state:/app/state          # audit signing key, tool pins
+      - gateway-results:/app/results      # benchmark results
+      - gateway-policies:/app/config/policies
+      - ./certs:/certs:ro                 # Amazon RDS CA bundle
+    tmpfs: ["/tmp:size=16m"]
+    healthcheck:
+      test: ["CMD", "/app/bin/gatewayctl", "health"]
+      interval: 10s
+      timeout: 4s
+      retries: 6
+      start_period: 10s
+    networks: [edge, internal]            # edge = internet (Groq, RDS); internal = tools
+    depends_on:
+      redis: { condition: service_started }
+      workspace: { condition: service_started }
+      comms: { condition: service_started }
+      crm: { condition: service_started }
+      postgres: { condition: service_healthy, required: false }   # only with --profile localdb
+
+  workspace:
+    <<: *hardened
+    image: ${TOOLS_IMAGE:?run ./deploy.sh}
+    command: ["python", "tools/workspace_server.py"]
+    environment: { <<: *tool-env, TOOL_PORT: "8101" }
+    tmpfs: ["/sandbox:mode=1777,size=16m", "/tmp:size=8m"]
+
+  comms:
+    <<: *hardened
+    image: ${TOOLS_IMAGE:?run ./deploy.sh}
+    command: ["python", "tools/comms_server.py"]
+    environment: { <<: *tool-env, TOOL_PORT: "8102" }
+    tmpfs: ["/tmp:size=8m"]
+
+  crm:
+    <<: *hardened
+    image: ${TOOLS_IMAGE:?run ./deploy.sh}
+    command: ["python", "tools/crm_server.py"]
+    environment: { <<: *tool-env, TOOL_PORT: "8103" }
+    tmpfs: ["/data:mode=1777,size=8m", "/tmp:size=8m"]
+
+  attacker:
+    <<: *hardened
+    image: ${TOOLS_IMAGE:?run ./deploy.sh}
+    command: ["python", "attacker/attacker_server.py"]
+    environment: { ATTACKER_HOST: 0.0.0.0 }
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes: [redis-data:/data]           # password-protected, internal network only
+    networks: [internal]
+
+  # Plan B only: a local Postgres if RDS is not ready. Start with --profile localdb.
+  postgres:
+    profiles: [localdb]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-unset}
+      POSTGRES_DB: aegis
+    volumes: [pg-data:/var/lib/postgresql/data]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+networks:
+  edge: {}
+  internal:
+    internal: true                        # no route to the internet
+
+volumes:
+  caddy-data:
+  caddy-config:
+  gateway-state:
+  gateway-results:
+  gateway-policies:
+  redis-data:
+  pg-data:

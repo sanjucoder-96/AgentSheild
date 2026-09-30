@@ -169,6 +169,36 @@ func (e *Engine) Save(name, text string) error {
 	return e.Reload()
 }
 
+// Delete removes one complete policy file only when the remaining set still
+// compiles. The active policy set is left untouched on any failure.
+func (e *Engine) Delete(name string) error {
+	if !strings.HasSuffix(name, ".cedar") || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
+		return fmt.Errorf("invalid policy file name")
+	}
+	e.mu.RLock()
+	if _, exists := e.files[name]; !exists {
+		e.mu.RUnlock()
+		return fmt.Errorf("policy file %q does not exist", name)
+	}
+	files := map[string]string{}
+	for k, v := range e.files {
+		if k != name {
+			files[k] = v
+		}
+	}
+	e.mu.RUnlock()
+	if len(files) == 0 {
+		return fmt.Errorf("at least one policy file must remain")
+	}
+	if _, _, err := compile(files); err != nil {
+		return err
+	}
+	if err := os.Remove(filepath.Join(e.dir, name)); err != nil {
+		return err
+	}
+	return e.Reload()
+}
+
 func (e *Engine) Decide(entities cedar.EntityMap, req cedar.Request) Decision {
 	e.mu.RLock()
 	set, meta := e.set, e.meta

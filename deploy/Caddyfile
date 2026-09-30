@@ -1,0 +1,30 @@
+# Caddy terminates HTTPS with an automatic Let's Encrypt certificate for $DOMAIN
+# and forwards to the gateway. Set DOMAIN=localhost to test with Caddy's local CA.
+{
+	admin off
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Internal-only endpoints: Prometheus scrapes these on the Docker network.
+	@internal path /metrics /metrics/*
+	respond @internal 404
+
+	reverse_proxy {$UPSTREAM:gateway:8080}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

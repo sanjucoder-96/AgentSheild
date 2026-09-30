@@ -264,6 +264,18 @@ func (g *Gateway) handleToolsCall(w http.ResponseWriter, r *http.Request, req *r
 		}
 		out.verdict, out.reason = policy.VerdictAllow, "allowlisted"
 	default:
+		spec := g.cfg.Tools[params.Name]
+		if len(spec.AllowedAgents) > 0 && !containsString(spec.AllowedAgents, agent) {
+			out.reason, out.ruleIDs = "tool_agent_scope", []string{"tool-agent-scope"}
+			finish(nil)
+			return
+		}
+		argsJSON, _ := json.Marshal(params.Arguments)
+		if spec.MaxArgsBytes > 0 && int64(len(argsJSON)) > spec.MaxArgsBytes {
+			out.reason, out.ruleIDs = "tool_argument_limit", []string{"tool-argument-limit"}
+			finish(nil)
+			return
+		}
 		if !g.fullPipeline(ctx, r, agent, sessionID, t, params, out, sw, &excluded, decisionID) {
 			finish(nil)
 			return
@@ -286,6 +298,15 @@ func (g *Gateway) handleToolsCall(w http.ResponseWriter, r *http.Request, req *r
 		"gateway/trust":       trustLabel(t, out),
 	}
 	finish(result)
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 // fullPipeline runs every check. It returns false when the call must not execute.
@@ -340,6 +361,10 @@ func (g *Gateway) fullPipeline(ctx context.Context, r *http.Request, agent, sess
 	entities, req := cedarRequest(ag, t, out.report.Facts)
 	d := g.policy.Decide(entities, req)
 	sw.lap("policy")
+	if d.Verdict == policy.VerdictAllow && spec.RequireApproval {
+		d.Verdict, d.Reason = policy.VerdictApproval, "tool_requires_approval"
+		d.RuleIDs = append(d.RuleIDs, "tool-approval-requirement")
+	}
 	out.verdict, out.ruleIDs, out.reason = d.Verdict, d.RuleIDs, d.Reason
 	if len(d.Errors) > 0 {
 		out.report.Findings = append(out.report.Findings, d.Errors...)
@@ -484,20 +509,23 @@ func (g *Gateway) reasonText(code string) string {
 }
 
 var builtinReasons = map[string]string{
-	"agent_revoked":        "This agent has been revoked by an administrator.",
-	"rate_limited":         "Too many tool calls; slow down.",
-	"unknown_tool":         "This tool is not registered with the gateway.",
-	"unknown_agent":        "This agent is not registered with the gateway.",
-	"tool_quarantined":     "The tool's description or schema changed and is waiting for review.",
-	"tool_unavailable":     "The tool server is not offering this tool right now.",
-	"tool_not_allowlisted": "This agent may not use this tool.",
-	"excessive_encoding":   "An argument is wrapped in too many layers of encoding.",
-	"schema_violation":     "The arguments do not match the tool's declared schema.",
-	"no_permit_matched":    "No policy allows this call (deny by default).",
-	"approval_denied":      "A human reviewer denied this call.",
-	"approval_timeout":     "Nobody approved this call in time, so it was denied.",
-	"approval_cancelled":   "The request was cancelled while waiting for approval.",
-	"session_store_error":  "The gateway could not read session state, so it failed closed.",
+	"agent_revoked":           "This agent has been revoked by an administrator.",
+	"rate_limited":            "Too many tool calls; slow down.",
+	"unknown_tool":            "This tool is not registered with the gateway.",
+	"unknown_agent":           "This agent is not registered with the gateway.",
+	"tool_quarantined":        "The tool's description or schema changed and is waiting for review.",
+	"tool_unavailable":        "The tool server is not offering this tool right now.",
+	"tool_not_allowlisted":    "This agent may not use this tool.",
+	"tool_agent_scope":        "This agent is outside the tool's explicit registry scope.",
+	"tool_argument_limit":     "The tool arguments exceed the registry size limit.",
+	"tool_requires_approval":  "This registry entry requires human approval before execution.",
+	"excessive_encoding":      "An argument is wrapped in too many layers of encoding.",
+	"schema_violation":        "The arguments do not match the tool's declared schema.",
+	"no_permit_matched":       "No policy allows this call (deny by default).",
+	"approval_denied":         "A human reviewer denied this call.",
+	"approval_timeout":        "Nobody approved this call in time, so it was denied.",
+	"approval_cancelled":      "The request was cancelled while waiting for approval.",
+	"session_store_error":     "The gateway could not read session state, so it failed closed.",
 	"policy_evaluation_error": "A policy failed to evaluate, so the gateway failed closed.",
 }
 

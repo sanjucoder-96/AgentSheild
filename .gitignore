@@ -6,3 +6,16 @@
 /web/node_modules/
 *.pid
 .env
+# local tool state (created at runtime)
+tools/crm.sqlite3
+tools/sandbox/
+__pycache__/
+*.pyc
+# deployment secrets and generated files
+deploy/.env
+deploy/release.env
+deploy/certs/
+
+# Local SSH key created by AWS deploy (NEVER commit)
+deploy/aegis-key.pem
+deploy/*.pem

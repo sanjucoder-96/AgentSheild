@@ -14,8 +14,8 @@ func hasVariant(vars []string, want string) bool {
 func TestExpandDecodesLayers(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"YXVkaXQtdGVhbUBldmlsLW1haWwuZXhhbXBsZQ==", "audit-team@evil-mail.example"}, // base64
-		{"audit%2Dteam%40evil%2Dmail%2Eexample", "audit-team@evil-mail.example"},   // percent
-		{"audit\u200b@evil\u200b.example", "audit@evil.example"},                    // zero-width
+		{"audit%2Dteam%40evil%2Dmail%2Eexample", "audit-team@evil-mail.example"},     // percent
+		{"audit\u200b@evil\u200b.example", "audit@evil.example"},                     // zero-width
 		{"evil\uff0eexample", "evil.example"},                                        // fullwidth dot (NFKC)
 	}
 	for _, c := range cases {

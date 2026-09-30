@@ -1,0 +1,13 @@
+# Plan B: build the images on the server instead of pulling them from GHCR.
+# Used by `./deploy.sh --build` from a full checkout of the repository.
+services:
+  gateway:
+    build: { context: .., dockerfile: Dockerfile }
+  workspace:
+    build: { context: .., dockerfile: tools/Dockerfile }
+  comms:
+    build: { context: .., dockerfile: tools/Dockerfile }
+  crm:
+    build: { context: .., dockerfile: tools/Dockerfile }
+  attacker:
+    build: { context: .., dockerfile: tools/Dockerfile }

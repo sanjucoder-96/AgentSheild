@@ -26,6 +26,8 @@ const (
 	StatusQuarantined  = "quarantined"
 	StatusUnregistered = "unregistered"
 	StatusUnavailable  = "unavailable"
+	StatusSuspended    = "suspended"
+	StatusRevoked      = "revoked"
 )
 
 type UpstreamTool struct {
@@ -35,19 +37,22 @@ type UpstreamTool struct {
 }
 
 type Tool struct {
-	Name           string          `json:"name"`
-	Server         string          `json:"server"`
-	Description    string          `json:"description"`
-	InputSchema    json.RawMessage `json:"input_schema"`
-	Hash           string          `json:"hash"`
-	PinnedHash     string          `json:"pinned_hash"`
-	Status         string          `json:"status"`
-	PendingDesc    string          `json:"pending_description,omitempty"`
-	LastSeen       time.Time       `json:"last_seen"`
-	Destructive    bool            `json:"destructive"`
-	SendsExternal  bool            `json:"sends_external"`
-	ReadsUntrusted bool            `json:"reads_untrusted"`
-	ReadsPrivate   bool            `json:"reads_private"`
+	Name            string          `json:"name"`
+	Server          string          `json:"server"`
+	AllowedAgents   []string        `json:"allowed_agents,omitempty"`
+	MaxArgsBytes    int64           `json:"max_args_bytes,omitempty"`
+	RequireApproval bool            `json:"require_approval,omitempty"`
+	Description     string          `json:"description"`
+	InputSchema     json.RawMessage `json:"input_schema"`
+	Hash            string          `json:"hash"`
+	PinnedHash      string          `json:"pinned_hash"`
+	Status          string          `json:"status"`
+	PendingDesc     string          `json:"pending_description,omitempty"`
+	LastSeen        time.Time       `json:"last_seen"`
+	Destructive     bool            `json:"destructive"`
+	SendsExternal   bool            `json:"sends_external"`
+	ReadsUntrusted  bool            `json:"reads_untrusted"`
+	ReadsPrivate    bool            `json:"reads_private"`
 
 	schema        *jsonschema.Schema
 	props         map[string]bool
@@ -61,19 +66,26 @@ type Event struct {
 }
 
 type Registry struct {
-	cfg     *config.Config
-	pinFile string
-	mu      sync.RWMutex
-	tools   map[string]*Tool
-	pins    map[string]string
+	cfg       *config.Config
+	pinFile   string
+	mu        sync.RWMutex
+	tools     map[string]*Tool
+	pins      map[string]string
+	states    map[string]string
+	stateFile string
 }
 
 func NewRegistry(cfg *config.Config) (*Registry, error) {
-	r := &Registry{cfg: cfg, pinFile: filepath.Join(cfg.StateDir, "pins.json"),
-		tools: map[string]*Tool{}, pins: map[string]string{}}
+	r := &Registry{cfg: cfg, pinFile: filepath.Join(cfg.StateDir, "pins.json"), stateFile: filepath.Join(cfg.StateDir, "tool-status.json"),
+		tools: map[string]*Tool{}, pins: map[string]string{}, states: map[string]string{}}
 	if b, err := os.ReadFile(r.pinFile); err == nil {
 		if err := json.Unmarshal(b, &r.pins); err != nil {
 			return nil, fmt.Errorf("read pins: %w", err)
+		}
+	}
+	if b, err := os.ReadFile(r.stateFile); err == nil {
+		if err := json.Unmarshal(b, &r.states); err != nil {
+			return nil, fmt.Errorf("read tool status: %w", err)
 		}
 	}
 	return r, nil
@@ -117,6 +129,7 @@ func (r *Registry) Update(server string, list []UpstreamTool) []Event {
 			continue
 		}
 		t.Destructive, t.SendsExternal = spec.Destructive, spec.SendsExternal
+		t.AllowedAgents, t.MaxArgsBytes, t.RequireApproval = append([]string(nil), spec.AllowedAgents...), spec.MaxArgsBytes, spec.RequireApproval
 		t.ReadsUntrusted, t.ReadsPrivate = spec.ReadsUntrusted, spec.ReadsPrivate
 
 		pinned, ok := r.pins[ut.Name]
@@ -128,7 +141,9 @@ func (r *Registry) Update(server string, list []UpstreamTool) []Event {
 			r.activate(t, ut, schemaJSON)
 			events = append(events, Event{ut.Name, "pinned", "manifest pinned " + h[:12]})
 		case pinned == h:
-			if t.Status != StatusActive || t.schema == nil {
+			if _, managed := r.states[ut.Name]; managed {
+				t.Status = r.states[ut.Name]
+			} else if t.Status != StatusActive || t.schema == nil {
 				r.activate(t, ut, schemaJSON)
 			}
 		default:
@@ -179,6 +194,32 @@ func (r *Registry) Approve(name string) (Event, error) {
 	t.schema, t.props = compileSchema(name, t.InputSchema)
 	r.savePins()
 	return Event{name, "approved", "new manifest approved " + t.Hash[:12]}, nil
+}
+
+func (r *Registry) SetStatus(name, status string) (Event, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	t := r.tools[name]
+	if t == nil {
+		return Event{}, fmt.Errorf("tool %s is not registered", name)
+	}
+	if status != StatusSuspended && status != StatusRevoked && status != StatusActive {
+		return Event{}, fmt.Errorf("invalid tool status %q", status)
+	}
+	if status == StatusActive && (t.Status == StatusQuarantined || t.Status == StatusUnavailable || t.schema == nil) {
+		return Event{}, fmt.Errorf("tool %s cannot resume while manifest is %s", name, t.Status)
+	}
+	t.Status = status
+	if status == StatusActive {
+		delete(r.states, name)
+	} else {
+		r.states[name] = status
+	}
+	data, _ := json.MarshalIndent(r.states, "", "  ")
+	if err := os.WriteFile(r.stateFile, data, 0o600); err != nil {
+		return Event{}, err
+	}
+	return Event{name, status, "tool status changed to " + status}, nil
 }
 
 func (r *Registry) Get(name string) *Tool {
