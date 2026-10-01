@@ -31,6 +31,19 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
+      # Build the dashboard FIRST so web/dist/ exists for `//go:embed all:dist`
+      # in web/embed.go. Without this, every Go step (vet, test, build) fails
+      # at compile time with "pattern all:dist: no matching files found".
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+
+      - name: Dashboard build
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
@@ -53,16 +66,6 @@ jobs:
           pip install -r tools/requirements.txt
           python -m py_compile tools/*.py attacker/*.py demo/*.py
           python tools/test_workspace.py
-
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: "22"
-
-      - name: Dashboard build
-        working-directory: web
-        run: |
-          npm ci --no-audit --no-fund
-          npm run build
 
   images:
     needs: test
