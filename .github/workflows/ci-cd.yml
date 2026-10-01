@@ -47,6 +47,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
+          check-latest: true   # pull the newest patch so govulncheck sees stdlib fixes
 
       - name: Go vet
         run: go vet ./...
