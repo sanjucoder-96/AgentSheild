@@ -480,6 +480,174 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "Build and restart live gateway UI",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web'; npm run build; Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath (Join-Path (Get-Location) 'bin\\gateway.exe') -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory (Get-Location) -RedirectStandardOutput (Join-Path (Get-Location) 'logs\\gateway.out.log') -RedirectStandardError (Join-Path (Get-Location) 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $policies=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/policies').StatusCode; Write-Output ('health='+$health+' policies='+$policies)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Rebuild frontend and restart gateway",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web'; npm.cmd run build; Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath (Join-Path (Get-Location) 'bin\\gateway.exe') -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory (Get-Location) -RedirectStandardOutput (Join-Path (Get-Location) 'logs\\gateway.out.log') -RedirectStandardError (Join-Path (Get-Location) 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $policies=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/policies').StatusCode; Write-Output ('health='+$health+' policies='+$policies)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Compare model key environments",
+			"type": "shell",
+			"command": "$paths=@('C:\\Users\\umesh\\Downloads\\agentshield-level3\\aegis\\.env','C:\\Users\\umesh\\Downloads\\pnc3-gateway\\.env'); foreach($path in $paths){ $key=''; if(Test-Path $path){ $line=Get-Content $path | Where-Object { $_ -match '^\\s*MODEL_API_KEY=' } | Select-Object -First 1; if($line){ $key=$line.Split('=',2)[1].Trim().Trim('\"') } }; Write-Output ((Split-Path $path -Parent)+' present='+(-not [string]::IsNullOrWhiteSpace($key))+' length='+$key.Length) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Inspect model configuration safely",
+			"type": "shell",
+			"command": "$paths=@('C:\\Users\\umesh\\Downloads\\agentshield-level3\\aegis\\.env','C:\\Users\\umesh\\Downloads\\pnc3-gateway\\.env'); foreach($path in $paths){ $values=@{}; if(Test-Path $path){ Get-Content $path | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); $values[$pair[0].Trim()]=$pair[1].Trim().Trim('\"') } }; $key=[string]$values['MODEL_API_KEY']; $hash=if($key){(Get-FileHash -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($key))) -Algorithm SHA256).Hash.Substring(0,12)}else{'none'}; Write-Output ((Split-Path $path -Parent)+' keyHash='+$hash+' keyLength='+$key.Length+' endpoint='+$values['MODEL_ENDPOINT']+' model='+$values['MODEL_NAME']) }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Start gateway with active workspace key",
+			"type": "shell",
+			"command": "$source='C:\\Users\\umesh\\Downloads\\agentshield-level3\\aegis\\.env'; Get-Content $source | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0].Trim()) -Value $pair[1].Trim().Trim('\"') }; $root='C:\\Users\\umesh\\Downloads\\pnc3-gateway'; $exe=Join-Path $root 'bin\\gateway.exe'; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath $exe -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; Write-Output ('keyLength='+$env:MODEL_API_KEY.Length+' health='+$health)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Validate responsive navigation JSX",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web'; npm.cmd run build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Build responsive dashboard",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web'; npm.cmd run build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Activate responsive dashboard",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; $source='C:\\Users\\umesh\\Downloads\\agentshield-level3\\aegis\\.env'; Get-Content $source | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0].Trim()) -Value $pair[1].Trim().Trim('\"') }; $root=Get-Location; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath (Join-Path $root 'bin\\gateway.exe') -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $home=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/home').StatusCode; Write-Output ('health='+$health+' home='+$home)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Build login and plum UI",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web'; npm.cmd run build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Validate admin login UI",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web'; npm.cmd run build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Activate admin login and theme",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; $source='C:\\Users\\umesh\\Downloads\\agentshield-level3\\aegis\\.env'; Get-Content $source | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0].Trim()) -Value $pair[1].Trim().Trim('\"') }; $root=Get-Location; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath (Join-Path $root 'bin\\gateway.exe') -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $home=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/home').StatusCode; Write-Output ('health='+$health+' home='+$home)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Verify admin login flow",
+			"type": "shell",
+			"command": "$bad=200; try { Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/auth/login' -ContentType 'application/json' -Body (@{username='admin';password='wrong'}|ConvertTo-Json) | Out-Null } catch { $bad=[int]$_.Exception.Response.StatusCode }; $good=Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/auth/login' -ContentType 'application/json' -Body (@{username='admin';password='admin'}|ConvertTo-Json); $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; Write-Output ('bad='+$bad+' loginToken='+([string]::IsNullOrWhiteSpace($good.token) -eq $false)+' health='+$health)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Audit dashboard colors",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web\\src'; Select-String -Path .\\styles.css -Pattern '#[0-9A-Fa-f]{3,8}' -AllMatches | ForEach-Object { $_.Matches.Value } | Sort-Object -Unique",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Reaudit dashboard colors",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web\\src'; Select-String -Path .\\styles.css -Pattern '#[0-9A-Fa-f]{3,8}' -AllMatches | ForEach-Object { $_.Matches.Value } | Sort-Object -Unique",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Locate remaining legacy colors",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web\\src'; Select-String -Path .\\styles.css -Pattern '#(142326|173238|7fa800|94a6a8|d8f8a4|dce8e9|e4f3f4|f3f7f7|f7fbfb|fbfdfd|fff)(?![0-9A-Fa-f])' -AllMatches | ForEach-Object { $_.Line }",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Build cream plum dashboard",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web'; npm.cmd run build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Activate cream plum theme",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; $source='C:\\Users\\umesh\\Downloads\\agentshield-level3\\aegis\\.env'; Get-Content $source | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0].Trim()) -Value $pair[1].Trim().Trim('\"') }; $root=Get-Location; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath (Join-Path $root 'bin\\gateway.exe') -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $home=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/home').StatusCode; Write-Output ('health='+$health+' home='+$home)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Verify themed dashboard",
+			"type": "shell",
+			"command": "$bad=200; try { Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/auth/login' -ContentType 'application/json' -Body (@{username='admin';password='wrong'}|ConvertTo-Json) | Out-Null } catch { $bad=[int]$_.Exception.Response.StatusCode }; $good=Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/auth/login' -ContentType 'application/json' -Body (@{username='admin';password='admin'}|ConvertTo-Json); $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; Write-Output ('bad='+$bad+' loginToken='+([string]::IsNullOrWhiteSpace($good.token) -eq $false)+' health='+$health)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Check admin credential configuration",
+			"type": "shell",
+			"command": "$path='C:\\Users\\umesh\\Downloads\\agentshield-level3\\aegis\\.env'; $values=@{}; Get-Content $path | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); $values[$pair[0].Trim()]=$pair[1].Trim().Trim('\"') }; Write-Output ('usernamePresent='+(-not [string]::IsNullOrWhiteSpace($values['ADMIN_USERNAME']))+' username='+$values['ADMIN_USERNAME']+' passwordPresent='+(-not [string]::IsNullOrWhiteSpace($values['ADMIN_PASSWORD']))+' passwordLength='+([string]$values['ADMIN_PASSWORD']).Length)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Activate home stat styling",
+			"type": "shell",
+			"command": "Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway\\web'; npm.cmd run build; Set-Location 'C:\\Users\\umesh\\Downloads\\pnc3-gateway'; go build -o bin\\gateway.exe .\\cmd\\gateway; $source='C:\\Users\\umesh\\Downloads\\agentshield-level3\\aegis\\.env'; Get-Content $source | Where-Object { $_ -match '^\\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { $pair=$_.Split('=',2); Set-Item -Path ('Env:'+$pair[0].Trim()) -Value $pair[1].Trim().Trim('\"') }; $root=Get-Location; Get-Process gateway -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Process -FilePath (Join-Path $root 'bin\\gateway.exe') -ArgumentList '-config','config/gateway.yaml' -WorkingDirectory $root -RedirectStandardOutput (Join-Path $root 'logs\\gateway.out.log') -RedirectStandardError (Join-Path $root 'logs\\gateway.err.log'); Start-Sleep -Seconds 5; $health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $home=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/home').StatusCode; Write-Output ('health='+$health+' home='+$home)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Verify home styling activation",
+			"type": "shell",
+			"command": "$health=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/healthz').StatusCode; $route=(Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/home').StatusCode; Write-Output ('health='+$health+' homeRoute='+$route)",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
 		}
 	]
 }

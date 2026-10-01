@@ -99,3 +99,71 @@ same way.
   anything that slips through."
 - **CI/CD:** "Every push is tested, scanned and deployed. Actions are pinned by SHA
   because tags can be hijacked — that's how the TeamPCP campaign spread."
+
+---
+
+## Round 3: merge with Umesh's version, UI/UX pass, review fixes
+
+**Merge.** Umesh's version was built on the first Level 3 zip, before the real-Docker
+test round, so it lacked four fixes. They are ported back: database retry on startup,
+`/sandbox` and `/data` in the tools image, production compose dependency fixes, and the
+rewritten local `docker-compose.yml`. Umesh's additions are kept: per-page URLs
+(`/home`, `/agent`, `/tools`…, so Back works), Windows support in the Makefile and the
+benchmark button, approval events in the audit log, and new tests.
+
+| # | Problem | Fix | Verified by |
+|---|---|---|---|
+| 1 | **A real Groq key was in `deploy/.env.example`**, a template meant for git | Blanked. **Rotate that key** | secret scan of the zip: 0 keys |
+| 2 | Mobile navigation broke: nav items became links, but the mobile CSS still targeted buttons, so labels wrapped, numbers showed and items ran off-screen | A proper mobile menu: Menu button, two-column page grid, Escape closes it, closes after navigating, approval badge on the button | headless Chromium at 390 px |
+| 3 | **No Log out on mobile** (the header chips were hidden) | Account chip and Log out inside the mobile menu | browser test: logout returns to sign-in |
+| 4 | Stat strip left an empty grey cell on narrow screens ("stat deny container"); and allowed + blocked + held didn't add up to the total | Flex rows that always fill; labels "human reviews — counted in final verdict" and "total decisions — allowed + blocked" | screenshots at 390 / 1366 px |
+| 5 | Logo styled two ways (sidebar vs login), no favicon, tab title not branded | One `BrandMark`/`BrandLockup` component everywhere; matching `favicon.svg`; title "AgentShield · Secure Agent Tool Gateway" | screenshots; favicon served 200 |
+| 6 | Tool registry table cut off on phones; policy names wrapped 4–5 lines | Tables scroll horizontally inside their panel on small screens | overflow audit: 0 pages overflow at either size |
+| 7 | Audit records broke one word per line on phones | Description spans the full row | screenshot |
+| 8 | **Approval outcome never reached the RDS audit log**: held and outcome events shared one id, and the PostgreSQL table requires unique ids | Distinct ids per stage; regression test | real PostgreSQL: events `pending, denied`, 0 append errors |
+| 9 | Approval events didn't appear in the live feed | Feed now shows them | code path |
+| 10 | 108 exported Go identifiers and 16 React components had no documentation | Doc comment on every one (Go convention: starts with the name) | scan: 0 undocumented |
+
+**Verification of the merged build:** `gofmt` clean; `go vet` clean; 8 Go test packages
++ 5 Python sandbox tests pass; `actionlint` clean; demo ALLOW + 5×DENY; benchmark full
+profile 100% contained, 0% false positives, p99 0.58 ms; real `docker compose up --build`:
+7/7 containers, gateway healthy, login, favicon, deep links and audit chain all verified.
+
+---
+
+## Round 4: human approval demo, agent console, agent guardrails
+
+**Demo.** `demo/run_demo.py` now has six steps. Step 4: a human **denies**
+`delete_all_emails`. Step 5 (new): a human **approves** `run_shell ls`, which then
+really runs and returns the file list. Run with `--human` to click Approve / Deny
+yourself in the dashboard instead of the script deciding.
+
+**Agent console.**
+- Real agent loop: plan → tool calls through the gateway → results back to the model
+  → final answer (at most 4 steps). Before, the model never saw tool results and gave
+  no real answer.
+- **Inline approval:** when the gateway holds a call, an Approve / Deny card with a
+  countdown appears inside the conversation. Previously, approving meant leaving the
+  console, which lost the result.
+- One-click examples: Normal task, Needs a human, Prompt injection, Off-topic.
+- Fixed a latent bug: tool results lost their `tool_call_id`, which model providers reject.
+- Approve / Deny buttons were pale and looked disabled; now solid green and red.
+
+**Agent guardrails** (`internal/gateway/agent_guard.go`). Stated in the system prompt
+*and* enforced in code, so they hold even if the model ignores the prompt:
+
+| Guardrail | Enforced by |
+|---|---|
+| Stays on purpose: tickets, customer records, team email, workspace notes; fixed refusal for anything else | System prompt |
+| Plain text, **no Markdown** (the `**` problem) | Prompt + `plainText()` strips it from every reply |
+| **Not too short, not too long:** 12–90 words, 2–4 sentences | Prompt + one automatic rewrite request when out of range + `clampWords()` cuts at a sentence boundary |
+| Ignores instructions inside tickets, emails and files | Prompt; the gateway still blocks any harmful resulting call |
+| Browser cannot inject its own system prompt | `sanitizeAgentHistory()` drops client "system" messages |
+| Size limits | 1,000-character instruction, 4,000-character tool output, 16-message history, 3 tool calls per step |
+| Stable output | temperature 0.2, max_tokens 1024 |
+
+**Verified:** unit tests for Markdown stripping, length clamping and history
+sanitising; browser test against a deliberately misbehaving stand-in model (Markdown,
+over-long and one-word answers) — inline approval appeared with a countdown, Approve
+and Deny both work, final answers had no `**` and 37 words, instructions capped at
+1,000 characters, no mobile overflow. The real Groq model was not called (no key here).

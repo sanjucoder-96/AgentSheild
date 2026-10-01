@@ -24,6 +24,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// Result holds every decoded form of every argument, plus what the canonicalizer had to undo.
 type Result struct {
 	// Variants maps an argument path (e.g. "to", "items[0].url") to every form of its value.
 	Variants      map[string][]string
@@ -41,6 +42,7 @@ func (r *Result) All() []string {
 	return out
 }
 
+// Paths returns the argument paths in sorted order, so inspection is deterministic.
 func (r *Result) Paths() []string {
 	out := make([]string, 0, len(r.Variants))
 	for p := range r.Variants {

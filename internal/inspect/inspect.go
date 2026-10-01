@@ -23,6 +23,7 @@ import (
 	"pnc3-gateway/internal/config"
 )
 
+// Destination is one place a call would send data (email address or URL) and the result of each check on it.
 type Destination struct {
 	Arg         string   `json:"arg"`
 	Kind        string   `json:"kind"`
@@ -83,21 +84,25 @@ type SessionView struct {
 	PrivateValues   map[string]struct{} // fingerprints of private data read earlier
 }
 
+// Report is the inspector's output: facts for Cedar, the destinations found and human-readable findings.
 type Report struct {
 	Facts        Facts         `json:"facts"`
 	Destinations []Destination `json:"destinations"`
 	Findings     []string      `json:"findings"`
 }
 
+// Inspector turns a canonicalized tool call into facts for the policy engine.
 type Inspector struct {
 	cfg      *config.Config
 	resolver *net.Resolver
 }
 
+// New returns an inspector that uses the configured allowlists and DNS.
 func New(cfg *config.Config) *Inspector {
 	return &Inspector{cfg: cfg, resolver: net.DefaultResolver}
 }
 
+// Inspect checks every form of every argument for destinations, private addresses, path escapes, commands, SQL writes, secrets and session data flow.
 func (in *Inspector) Inspect(ctx context.Context, tool config.Tool, c *canon.Result, sess SessionView) Report {
 	rep := Report{Facts: Facts{
 		AllDestinationsAllowed: true,

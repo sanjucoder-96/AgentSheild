@@ -21,6 +21,7 @@ import (
 	"unicode/utf8"
 )
 
+// Request is a JSON-RPC 2.0 request as sent by an MCP client.
 type Request struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
@@ -28,8 +29,10 @@ type Request struct {
 	Params  json.RawMessage `json:"params,omitempty"`
 }
 
+// IsNotification reports whether the request has no id and therefore expects no response.
 func (r *Request) IsNotification() bool { return len(r.ID) == 0 }
 
+// ToolCallParams are the parameters of an MCP tools/call request.
 type ToolCallParams struct {
 	Name      string         `json:"name"`
 	Arguments map[string]any `json:"arguments"`
@@ -42,12 +45,14 @@ type ParseError struct {
 	Msg  string
 }
 
+// Error returns the reason code and message.
 func (e *ParseError) Error() string { return e.Code + ": " + e.Msg }
 
 func perr(code, format string, a ...any) error {
 	return &ParseError{Code: code, Msg: fmt.Sprintf(format, a...)}
 }
 
+// Code returns the stable reason code of a parse error, for the audit log.
 func Code(err error) string {
 	var pe *ParseError
 	if errors.As(err, &pe) {

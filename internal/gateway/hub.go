@@ -17,8 +17,10 @@ type Hub struct {
 	clients map[chan []byte]struct{}
 }
 
+// NewHub returns an empty live-event hub.
 func NewHub() *Hub { return &Hub{clients: map[chan []byte]struct{}{}} }
 
+// Broadcast sends an event to every connected dashboard, dropping it for clients that are too slow.
 func (h *Hub) Broadcast(kind string, data any) {
 	msg, err := json.Marshal(map[string]any{"type": kind, "data": data})
 	if err != nil {
@@ -71,6 +73,7 @@ func (h *Hub) serve(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Metrics holds the Prometheus counters and histograms exposed on /metrics.
 type Metrics struct {
 	Registry  *prometheus.Registry
 	decisions *prometheus.CounterVec
@@ -78,6 +81,7 @@ type Metrics struct {
 	stages    *prometheus.HistogramVec
 }
 
+// NewMetrics registers the gateway's Prometheus metrics.
 func NewMetrics() *Metrics {
 	m := &Metrics{
 		Registry: prometheus.NewRegistry(),
@@ -97,6 +101,7 @@ func NewMetrics() *Metrics {
 	return m
 }
 
+// Observe records one decision's verdict, total overhead and per-stage timings.
 func (m *Metrics) Observe(verdict string, overhead time.Duration, stages map[string]int64) {
 	m.decisions.WithLabelValues(verdict).Inc()
 	m.overhead.Observe(overhead.Seconds())

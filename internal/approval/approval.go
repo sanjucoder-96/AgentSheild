@@ -19,6 +19,7 @@ const (
 	Cancelled = "cancelled"
 )
 
+// Pending is a tool call held for a human decision, as shown in the approval queue.
 type Pending struct {
 	ID         string          `json:"id"`
 	DecisionID string          `json:"decision_id"`
@@ -34,12 +35,14 @@ type Pending struct {
 	ch         chan string
 }
 
+// Broker holds pending approvals and delivers each human decision to the waiting request.
 type Broker struct {
 	mu       sync.Mutex
 	pending  map[string]*Pending
 	OnChange func()
 }
 
+// NewBroker returns an empty approval broker.
 func NewBroker() *Broker { return &Broker{pending: map[string]*Pending{}} }
 
 // Wait registers the call and blocks until an outcome is known.
@@ -72,6 +75,7 @@ func (b *Broker) Wait(ctx context.Context, p *Pending, wait time.Duration) strin
 	}
 }
 
+// Resolve records a human decision (approved or denied) and wakes the waiting request.
 func (b *Broker) Resolve(id, outcome string) error {
 	if outcome != Approved && outcome != Denied {
 		return fmt.Errorf("outcome must be approved or denied")
@@ -103,6 +107,7 @@ func (b *Broker) DenyAgent(agent string) {
 	}
 }
 
+// List returns the calls currently waiting for approval, oldest first.
 func (b *Broker) List() []Pending {
 	b.mu.Lock()
 	defer b.mu.Unlock()

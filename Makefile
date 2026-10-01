@@ -1,6 +1,7 @@
 # PNC3 Secure Agent Tool Gateway
 GO      ?= go
 PYTHON  ?= python3
+BIN_EXT := $(if $(filter Windows_NT,$(OS)),.exe,)
 .DEFAULT_GOAL := help
 
 help: ## Show this help
@@ -16,15 +17,15 @@ web: ## Build the dashboard (embedded in the gateway binary)
 
 build: web ## Build gateway, gatewayctl and bench
 	mkdir -p bin
-	$(GO) build -o bin/gateway ./cmd/gateway
-	$(GO) build -o bin/gatewayctl ./cmd/gatewayctl
-	$(GO) build -o bin/bench ./cmd/bench
+	$(GO) build -o bin/gateway$(BIN_EXT) ./cmd/gateway
+	$(GO) build -o bin/gatewayctl$(BIN_EXT) ./cmd/gatewayctl
+	$(GO) build -o bin/bench$(BIN_EXT) ./cmd/bench
 
 build-fast: ## Build binaries without rebuilding the dashboard
 	mkdir -p bin
-	$(GO) build -o bin/gateway ./cmd/gateway
-	$(GO) build -o bin/gatewayctl ./cmd/gatewayctl
-	$(GO) build -o bin/bench ./cmd/bench
+	$(GO) build -o bin/gateway$(BIN_EXT) ./cmd/gateway
+	$(GO) build -o bin/gatewayctl$(BIN_EXT) ./cmd/gatewayctl
+	$(GO) build -o bin/bench$(BIN_EXT) ./cmd/bench
 
 test: ## Run Go unit tests and tool sandbox tests
 	$(GO) test ./...

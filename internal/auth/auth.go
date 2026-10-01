@@ -20,15 +20,18 @@ import (
 
 const devIssuer = "pnc3-gateway-dev"
 
+// Identity is the authenticated agent behind a request.
 type Identity struct {
 	AgentID string
 	Subject string
 }
 
+// Verifier checks an agent's bearer token and returns its identity.
 type Verifier interface {
 	Verify(ctx context.Context, bearer string) (Identity, error)
 }
 
+// New returns the token verifier for the configured mode: dev HS256 tokens or OIDC.
 func New(ctx context.Context, cfg *config.Config) (Verifier, error) {
 	switch cfg.Auth.Mode {
 	case "dev":
@@ -45,6 +48,7 @@ func New(ctx context.Context, cfg *config.Config) (Verifier, error) {
 	}
 }
 
+// BearerToken extracts the token from an "Authorization: Bearer" header.
 func BearerToken(header string) (string, error) {
 	const p = "bearer "
 	if len(header) < len(p) || !strings.EqualFold(header[:len(p)], p) {
@@ -55,6 +59,7 @@ func BearerToken(header string) (string, error) {
 
 type devVerifier struct{ secret []byte }
 
+// Verify checks a development token: HS256 signature, issuer, expiry and agent claim.
 func (d *devVerifier) Verify(_ context.Context, token string) (Identity, error) {
 	claims := jwt.MapClaims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (any, error) { return d.secret, nil },
@@ -85,6 +90,7 @@ type oidcVerifier struct {
 	claim string
 }
 
+// Verify checks an OIDC token against the provider's published keys and reads the agent identifier.
 func (o *oidcVerifier) Verify(ctx context.Context, token string) (Identity, error) {
 	idt, err := o.v.Verify(ctx, token)
 	if err != nil {

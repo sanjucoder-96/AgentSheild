@@ -25,6 +25,7 @@ import (
 	"time"
 )
 
+// Case is one corpus entry: a tool call, optional setup steps, and whether it is an attack or benign.
 type Case struct {
 	ID          string         `json:"id"`
 	Kind        string         `json:"kind"`
@@ -36,11 +37,13 @@ type Case struct {
 	Scenario    []Step         `json:"scenario"`
 }
 
+// Step is a setup call that runs before a case to build session state (for example reading untrusted content).
 type Step struct {
 	Tool string         `json:"tool"`
 	Args map[string]any `json:"args"`
 }
 
+// ProfileResult is the measured outcome of one baseline profile: containment, blocks, false positives and latency.
 type ProfileResult struct {
 	Profile         string            `json:"profile"`
 	Attacks         int               `json:"attacks"`
@@ -60,6 +63,7 @@ type ProfileResult struct {
 	FalsePositiveID []string          `json:"false_positive_ids"`
 }
 
+// Summary is the full benchmark report written to results/summary.json and shown in the dashboard.
 type Summary struct {
 	GeneratedAt string          `json:"generated_at"`
 	Gateway     string          `json:"gateway"`

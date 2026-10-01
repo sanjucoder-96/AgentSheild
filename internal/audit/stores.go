@@ -17,6 +17,7 @@ import (
 
 // ---------- JSONL file (default, zero setup) ----------
 
+// FileStore keeps the audit log as signed JSON lines in state/audit.jsonl (the zero-setup default).
 type FileStore struct {
 	signer *Signer
 	path   string
@@ -26,6 +27,7 @@ type FileStore struct {
 	seq    int64
 }
 
+// NewFileStore opens or creates the JSONL audit log and resumes its hash chain.
 func NewFileStore(stateDir string, s *Signer) (*FileStore, error) {
 	fs := &FileStore{signer: s, path: filepath.Join(stateDir, "audit.jsonl")}
 	recs, err := fs.readAll()
@@ -42,6 +44,7 @@ func NewFileStore(stateDir string, s *Signer) (*FileStore, error) {
 	return fs, nil
 }
 
+// Backend names this store for the dashboard.
 func (fs *FileStore) Backend() string { return "file:" + fs.path }
 
 func (fs *FileStore) readAll() ([]Record, error) {
@@ -66,6 +69,7 @@ func (fs *FileStore) readAll() ([]Record, error) {
 	return out, sc.Err()
 }
 
+// Append links the record into the hash chain, signs it and writes it to disk.
 func (fs *FileStore) Append(r *Record) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -92,6 +96,7 @@ func (fs *FileStore) Append(r *Record) error {
 	return nil
 }
 
+// Recent returns up to limit of the newest records that match filter.
 func (fs *FileStore) Recent(limit int, filter func(*Record) bool) ([]Record, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -117,11 +122,13 @@ func (fs *FileStore) Verify() (VerifyResult, error) {
 
 // ---------- PostgreSQL ----------
 
+// PGStore keeps the audit log in PostgreSQL, for example Amazon RDS.
 type PGStore struct {
 	signer *Signer
 	pool   *pgxpool.Pool
 }
 
+// NewPGStore connects to PostgreSQL and creates the audit table if needed.
 func NewPGStore(ctx context.Context, url string, s *Signer) (*PGStore, error) {
 	pool, err := pgxpool.New(ctx, url)
 	if err != nil {
@@ -138,6 +145,7 @@ func NewPGStore(ctx context.Context, url string, s *Signer) (*PGStore, error) {
 	return &PGStore{signer: s, pool: pool}, nil
 }
 
+// Backend names this store for the dashboard.
 func (p *PGStore) Backend() string { return "postgres" }
 
 // Schema matches migrations/001_init.sql (the audit table is created here too
@@ -160,6 +168,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS audit_log_agent_idx ON audit_log (agent_id, seq DESC);
 CREATE INDEX IF NOT EXISTS audit_log_verdict_idx ON audit_log (verdict, seq DESC);`
 
+// Append links and signs the record inside a transaction; an advisory lock keeps the chain consistent across gateway replicas.
 func (p *PGStore) Append(r *Record) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -192,6 +201,7 @@ func (p *PGStore) Append(r *Record) error {
 	return tx.Commit(ctx)
 }
 
+// Recent returns up to limit of the newest records that match filter.
 func (p *PGStore) Recent(limit int, filter func(*Record) bool) ([]Record, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -214,6 +224,7 @@ func (p *PGStore) Recent(limit int, filter func(*Record) bool) ([]Record, error)
 	return out, rows.Err()
 }
 
+// Verify re-reads every record in order and checks the hash chain and every signature.
 func (p *PGStore) Verify() (VerifyResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

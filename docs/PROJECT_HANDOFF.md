@@ -2,7 +2,7 @@
 
 > **Purpose of this file.** This is the running memory for our work with Claude. Our chats happen in incognito sessions, so Claude remembers nothing between them. To continue, start a new chat, upload this README (plus the deck and any files listed in §2), and say: *"Continue from this README."* Claude should read the whole file, treat §10 (Decisions log) as settled unless we reopen something, and pick up from §11 (Next steps).
 >
-> **Version:** v2 · **Last updated:** 30 Sep 2026 (night before Level 3) · **Maintainer rule:** after every meaningful change, Claude updates the relevant sections, adds a changelog entry (§14), and bumps the version.
+> **Version:** v4 · **Last updated:** 1 Oct 2026 (approval demo + agent guardrails) · **Maintainer rule:** after every meaningful change, Claude updates the relevant sections, adds a changelog entry (§14), and bumps the version.
 
 ---
 
@@ -29,6 +29,10 @@
 **AWS plan:** Mumbai `ap-south-1`, free plan ($100 credits enough). EC2 Ubuntu 24.04 **x86** t3.small/micro + Elastic IP; RDS PostgreSQL 16 smallest class, not public, encrypted; SG rule `aegis-rds-sg` 5432 ← `aegis-ec2-sg` is the EC2↔RDS link. Domain: none yet → DuckDNS recommended.
 
 **Next steps:** (1) do DEPLOY_AWS.md steps 0–9 tonight; (2) update the deck (stack, Umesh's AI features, Level 3 table, new numbers, dashboard screenshots); (3) rehearse on the public URL; (4) Level 4 prep: K8s manifests + HPA, Grafana dashboard + alerts from existing Prometheus metrics, load test for throughput.
+
+**v3 update (1 Oct 2026):** Deployed live at **https://agentshield.sanjayutchula.me** (EC2 + RDS). Umesh's new zip merged; it lacked my 4 Docker fixes (ported back). Latest deliverable is now **`agentshield-final.zip`**. Round 3 fixes: real Groq key found in `deploy/.env.example` (blanked; **rotate it**); mobile nav regression (links vs button CSS) → proper Menu drawer with Log out; stat strip empty cell + labels that add up; one logo component + favicon + branded title; scrollable tables and readable audit rows on phones; **approval outcome was silently dropped from the RDS audit log** (duplicate ids) → fixed + test; approval events shown in the live feed; doc comments on all 108 exported Go identifiers + 16 React components. Verified: 8 Go test packages + 5 Python tests, real Docker build, benchmark 100% / 0% FP / p99 0.58 ms. Details: `docs/LEVEL3_CHANGES.md` → "Round 3". **To redeploy:** commit + push (CI) or on the server `git pull && cd deploy && ./deploy.sh --build`.
+
+**v4 update:** Demo now 6 steps (step 4 human DENIES delete_all_emails, step 5 human APPROVES run_shell ls which runs; `--human` flag lets the presenter click). Agent console rewritten: real plan→tool→answer loop (max 4 steps), **inline Approve/Deny card with countdown** inside the conversation, example chips (Normal task / Needs a human / Prompt injection / Off-topic), fixed lost `tool_call_id` bug, high-contrast Approve/Deny buttons. Agent guardrails (`internal/gateway/agent_guard.go`): ACME-support-only scope with fixed refusal, plain text (Markdown `**` stripped in code), 12–90 words enforced (one rewrite + sentence clamp), client "system" messages dropped, size caps, temperature 0.2. Latest zip: **agentshield-final.zip** (rebuilt). Details: `docs/LEVEL3_CHANGES.md` → "Round 4"; README → "Showing human approval".
 
 **New decisions:** D11 keep Umesh's Groq features but the LLM stays out of the per-call path · D12 admins use cookie sessions, machines use bearer tokens, no tokens in URLs · D13 policies-as-code; dashboard edits persist in a volume until reset · D14 build images in CI, not on the small EC2 · D15 RDS for the audit log; Redis stays in Docker.
 
@@ -408,5 +412,7 @@ Waiting for instructions from us. Likely next tasks, in order:
 
 | Version | Date | Change |
 |---|---|---|
+| v4 | 1 Oct 2026 | Human-approval demo step + --human mode; agent console loop with inline approval; enforced agent guardrails (scope, length, no Markdown); tool_call_id fix. |
+| v3 | 1 Oct 2026 | Deployed to agentshield.sanjayutchula.me; merged Umesh's zip; UI/UX pass (mobile menu, logo, stats, tables); fixed RDS approval-audit bug; full code documentation; delivered agentshield-final.zip. |
 | v2 | 30 Sep 2026 | Reviewed Umesh's Groq version; Level 2 fixes; full Level 3 build (auth, HTTPS, RDS TLS, hardened harness, CI/CD, AWS guide) verified in production mode; delivered agentshield-level3.zip. |
 | v1 | 30 Sep 2026 | Created. Captures problem statement, deck v1 review, research doc summary, final stack (Go + cedar-go + Docker harness), Cedar design, decisions, pending fixes, next steps. |

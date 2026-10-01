@@ -28,6 +28,7 @@ const (
 	VerdictApproval = "approval"
 )
 
+// Meta describes one Cedar policy: its id, effect, source file and annotations.
 type Meta struct {
 	ID       string `json:"id"`
 	Effect   string `json:"effect"`
@@ -36,6 +37,7 @@ type Meta struct {
 	File     string `json:"file"`
 }
 
+// Decision is the policy verdict (allow, deny or approval) with the rules that produced it.
 type Decision struct {
 	Verdict string   `json:"verdict"`
 	RuleIDs []string `json:"rule_ids"`
@@ -43,6 +45,7 @@ type Decision struct {
 	Errors  []string `json:"errors,omitempty"`
 }
 
+// Engine holds the active Cedar policy set and swaps in new versions safely.
 type Engine struct {
 	dir      string
 	mu       sync.RWMutex
@@ -54,6 +57,7 @@ type Engine struct {
 	onReload func(err error)
 }
 
+// NewEngine loads every .cedar file in dir; it fails if they do not compile.
 func NewEngine(dir string) (*Engine, error) {
 	e := &Engine{dir: dir}
 	if err := e.Reload(); err != nil {
@@ -199,6 +203,7 @@ func (e *Engine) Delete(name string) error {
 	return e.Reload()
 }
 
+// Decide evaluates a request. Any evaluation error becomes a deny (fail closed).
 func (e *Engine) Decide(entities cedar.EntityMap, req cedar.Request) Decision {
 	e.mu.RLock()
 	set, meta := e.set, e.meta
@@ -247,6 +252,7 @@ func (e *Engine) ReasonText(id string) string {
 	return e.meta[cedar.PolicyID(id)].Reason
 }
 
+// Status is a snapshot of the loaded policies for the dashboard.
 type Status struct {
 	Files    map[string]string `json:"files"`
 	Policies []Meta            `json:"policies"`
@@ -254,6 +260,7 @@ type Status struct {
 	LastErr  string            `json:"last_error,omitempty"`
 }
 
+// Status returns the loaded policy files, rules and any reload error.
 func (e *Engine) Status() Status {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
