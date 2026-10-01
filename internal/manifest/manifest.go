@@ -30,12 +30,14 @@ const (
 	StatusRevoked      = "revoked"
 )
 
+// UpstreamTool is a tool as an upstream server describes it in tools/list.
 type UpstreamTool struct {
 	Name        string
 	Description string
 	InputSchema any
 }
 
+// Tool is a registered tool with its pinned manifest hash, status and compiled argument schema.
 type Tool struct {
 	Name            string          `json:"name"`
 	Server          string          `json:"server"`
@@ -59,12 +61,14 @@ type Tool struct {
 	pendingSchema []byte
 }
 
+// Event reports a registry change, such as a tool being pinned, quarantined or suspended.
 type Event struct {
 	Tool   string `json:"tool"`
 	Kind   string `json:"kind"` // pinned | quarantined | unregistered | unavailable | approved
 	Detail string `json:"detail"`
 }
 
+// Registry pins every tool's manifest and quarantines tools whose manifest changes.
 type Registry struct {
 	cfg       *config.Config
 	pinFile   string
@@ -75,6 +79,7 @@ type Registry struct {
 	stateFile string
 }
 
+// NewRegistry loads saved pins and administrator tool states from the state directory.
 func NewRegistry(cfg *config.Config) (*Registry, error) {
 	r := &Registry{cfg: cfg, pinFile: filepath.Join(cfg.StateDir, "pins.json"), stateFile: filepath.Join(cfg.StateDir, "tool-status.json"),
 		tools: map[string]*Tool{}, pins: map[string]string{}, states: map[string]string{}}
@@ -196,6 +201,7 @@ func (r *Registry) Approve(name string) (Event, error) {
 	return Event{name, "approved", "new manifest approved " + t.Hash[:12]}, nil
 }
 
+// SetStatus applies an administrator action: suspend, revoke or resume a tool. A quarantined or unavailable tool cannot be resumed; the state is saved to disk.
 func (r *Registry) SetStatus(name, status string) (Event, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -222,6 +228,7 @@ func (r *Registry) SetStatus(name, status string) (Event, error) {
 	return Event{name, status, "tool status changed to " + status}, nil
 }
 
+// Get returns a copy of the named tool, or nil if it is unknown.
 func (r *Registry) Get(name string) *Tool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -232,6 +239,7 @@ func (r *Registry) Get(name string) *Tool {
 	return nil
 }
 
+// All returns copies of every known tool, sorted by name.
 func (r *Registry) All() []Tool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

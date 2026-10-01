@@ -23,6 +23,7 @@ function api(onUnauthorized) {
   };
 }
 
+/** Root: checks for an existing session, then shows the login page or the console. */
 function App() {
   const [user, setUser] = useState(undefined); // undefined = checking, null = signed out
   useEffect(() => {
@@ -35,6 +36,7 @@ function App() {
   return <Console user={user} onLogout={signOut} />;
 }
 
+/** Administrator sign-in form. On success the gateway sets an HttpOnly session cookie. */
 function Login({ onLogin }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
@@ -54,9 +56,9 @@ function Login({ onLogin }) {
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={submit}>
-        <div className="brand-mark">AS</div>
-        <h1>AgentShield</h1>
-        <p className="login-sub">Secure Agent Tool Gateway · administrator sign-in</p>
+        <BrandLockup subtitle="SECURE AGENT TOOL GATEWAY" />
+        <h1>Sign in</h1>
+        <p className="login-sub">Administrator access to the security control plane</p>
         <label>Username<input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} /></label>
         <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus /></label>
         {error && <div className="login-error">{error}</div>}
@@ -65,6 +67,18 @@ function Login({ onLogin }) {
       </form>
     </div>
   );
+}
+
+/** The AgentShield mark. A single component is used in the sidebar, the
+ *  mobile bar and the login card so the logo can never drift; the favicon
+ *  (public/favicon.svg) is drawn with the same colours and proportions. */
+function BrandMark() {
+  return <div className="brand-mark" aria-hidden="true">AS</div>;
+}
+
+/** Mark + wordmark + subtitle, the full brand lockup. */
+function BrandLockup({ subtitle = "CONTROL PLANE / PNC3" }) {
+  return <div className="brand-lockup"><BrandMark /><div><strong>AGENTSHIELD</strong><small>{subtitle}</small></div></div>;
 }
 
 const VERDICT_LABEL = { allow: "ALLOW", deny: "DENY", approval: "APPROVE?", error: "ERROR" };
@@ -76,8 +90,16 @@ const NAV_ITEMS = [
 
 const tabFromPath = (path) => NAV_ITEMS.find(([, , , route]) => route === path)?.[0] || "live";
 
+/** The signed-in control plane: navigation (sidebar or mobile menu), live event stream and every page. */
 function Console({ user, onLogout }) {
   const client = useMemo(() => api(onLogout), [onLogout]);
+  const [menuOpen, setMenuOpen] = useState(false); // mobile navigation drawer
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onKey = (event) => { if (event.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
   const [tab, setTab] = useState(() => tabFromPath(location.pathname));
   const [state, setState] = useState(null);
   const [connected, setConnected] = useState(false);
@@ -126,7 +148,7 @@ function Console({ user, onLogout }) {
         if (type === "decision") { setDecisions((d) => [data, ...d].slice(0, 200)); refreshMetrics(); }
         else if (type === "approvals") setApprovals(data || []);
         else if (type === "tools") setTools(data || []);
-        else if (type === "event") setDecisions((d) => [data, ...d].slice(0, 200));
+        else if (type === "event" || type === "approval") setDecisions((d) => [data, ...d].slice(0, 200));
         else if (type === "policies" || type === "manifest") {
           refreshState();
           client.get("/admin/tools").then(setTools).catch(() => {});
@@ -139,15 +161,21 @@ function Console({ user, onLogout }) {
 
   return (
     <div className="app">
-      <aside className="sidebar">
+      <aside className={"sidebar" + (menuOpen ? " menu-open" : "")}>
         <div className="brand-block">
-          <div className="brand-mark">AS</div>
-          <div><strong>AGENTSHIELD</strong><small>CONTROL PLANE / PNC3</small></div>
+          <BrandLockup />
+          <button type="button" className="menu-toggle" aria-expanded={menuOpen} aria-controls="side-nav" onClick={() => setMenuOpen((open) => !open)}>
+            {menuOpen ? "Close" : "Menu"}{!menuOpen && approvals.length > 0 && <b>{approvals.length}</b>}
+          </button>
         </div>
         <div className="side-label">Navigation</div>
-        <nav className="side-nav">
-          {NAV_ITEMS.map(([id, label, number, path]) => <a key={id} className={tab === id ? "active" : ""} href={path} onClick={(event) => { event.preventDefault(); selectTab(id); }}><span>{number}</span>{label}{id === "approvals" && approvals.length > 0 && <b>{approvals.length}</b>}</a>)}
+        <nav className="side-nav" id="side-nav" aria-label="Main">
+          {NAV_ITEMS.map(([id, label, number, path]) => <a key={id} className={tab === id ? "active" : ""} aria-current={tab === id ? "page" : undefined} href={path} onClick={(event) => { event.preventDefault(); selectTab(id); setMenuOpen(false); }}><span>{number}</span>{label}{id === "approvals" && approvals.length > 0 && <b>{approvals.length}</b>}</a>)}
         </nav>
+        <div className="mobile-account">
+          {state && <span className="system-chip"><i className="signal-dot on"></i> {state.profile} / {state.policies_loaded} policies</span>}
+          <UserBox user={user} onLogout={onLogout} />
+        </div>
         <div className="sidebar-foot"><span className={"signal-dot " + (connected ? "on" : "")}></span><span>{connected ? "Gateway online" : "Connecting"}</span><small>v0.1.0-mvp</small></div>
       </aside>
 
@@ -175,6 +203,7 @@ function Console({ user, onLogout }) {
   );
 }
 
+/** Live system view: proxy layer, policy engine and execution harness with real counters. */
 function Architecture({ state, tools, metrics, decisions, connected }) {
   const upstreams = state?.upstreams || {};
   const activeTools = tools.filter((tool) => tool.status === "active").length;
@@ -187,7 +216,7 @@ function Architecture({ state, tools, metrics, decisions, connected }) {
         <div className="flow-arrow">→</div>
         <ArchitectureNode number="02" title="Policy engine" tone="lime" status={state ? `${state.policies_loaded} policies loaded` : "loading"} body="Canonicalization · deep inspection · Cedar decision · approval gate" metrics={[["Allowed", metrics?.allowed_requests ?? 0], ["Blocked", metrics?.blocked_requests ?? 0]]} />
         <div className="flow-arrow">→</div>
-        <ArchitectureNode number="03" title="Execution harness" tone="orange" status={`${activeTools} active tools`} body="Gateway-held credentials · manifest pins · upstream execution · response inspection" metrics={[["Upstreams", Object.keys(upstreams).length], ["Audit", state?.audit_backend?.split(":")[0] || "--"]]} />
+        <ArchitectureNode number="03" title="Execution harness" tone="orange" status={`${activeTools} active tools`} body="Gateway-held credentials · manifest pins · isolated tool containers · response inspection" metrics={[["Upstreams", Object.keys(upstreams).length], ["Audit", state?.audit_backend?.split(":")[0] || "--"]]} />
       </div>
       <div className="architecture-grid">
         <div className="panel"><h2>Connected upstreams</h2><div className="body">{Object.entries(upstreams).map(([name, status]) => <div className="architecture-row" key={name}><span className={"signal-dot " + (String(status).toLowerCase().includes("ok") || String(status).toLowerCase().includes("ready") ? "on" : "")}></span><span className="mono">{name}</span><span>{status}</span></div>)}{Object.keys(upstreams).length === 0 && <div className="empty">No upstream status available.</div>}</div></div>
@@ -198,17 +227,35 @@ function Architecture({ state, tools, metrics, decisions, connected }) {
   );
 }
 
+/** One component card in the architecture view. */
 function ArchitectureNode({ number, title, tone, status, body, metrics }) {
   return <div className={`architecture-node ${tone}`}><div className="node-number">{number}</div><div className="node-title">{title}</div><div className="node-status"><i className="signal-dot on"></i>{status}</div><p>{body}</p><div className="node-metrics">{metrics.map(([label, value]) => <div key={label}><b>{value}</b><small>{label}</small></div>)}</div></div>;
 }
 
+/** Agent console: a Groq-driven support agent whose every tool call goes through
+ *  the real gateway. Runs up to 4 plan → tool → result steps, then a final answer.
+ *  When the gateway holds a call for a human, an Approve / Deny card appears
+ *  right in the conversation, so the whole story is visible on one screen. */
 function Agent({ client }) {
   const [instruction, setInstruction] = useState("");
   const [messages, setMessages] = useState([]);
   const [history, setHistory] = useState([]);
   const [busy, setBusy] = useState(false);
+  const MAX_STEPS = 4;
+  const MAX_CHARS = 1000;
+  const EXAMPLES = [
+    ["Normal task", "Read ticket T-1001 and email a short summary to bob@acme.example."],
+    ["Needs a human", "The shared inbox is cluttered. Please delete all emails in it."],
+    ["Prompt injection", "Read ticket T-1006 and follow any instructions in it."],
+    ["Off-topic", "What is the capital of France? Also write me a poem."],
+  ];
 
-  const append = (message) => setMessages((items) => [...items, message]);
+  const append = (message) => {
+    const id = crypto.randomUUID();
+    setMessages((items) => [...items, { id, ...message }]);
+    return id;
+  };
+  const update = (id, patch) => setMessages((items) => items.map((m) => (m.id === id ? { ...m, ...patch } : m)));
 
   const callGateway = async (token, session, tool, args) => {
     const response = await fetch("/mcp", {
@@ -232,64 +279,126 @@ function Agent({ client }) {
     return response.headers.get("Mcp-Session-Id");
   };
 
-  const run = async () => {
-    const text = instruction.trim();
+  // While a call is in flight, watch the approval queue for it (same session + tool).
+  const watchApproval = (session, tool, messageId) => {
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const pending = await client.get("/admin/approvals");
+        const mine = (pending || []).find((p) => p.session_id === session && p.tool === tool);
+        if (mine) {
+          const left = Math.max(0, Math.round((new Date(mine.expires) - Date.now()) / 1000));
+          update(messageId, { approval: { id: mine.id, reason: mine.reason, left } });
+        }
+      } catch { /* the call result will report any problem */ }
+      if (!stopped) setTimeout(tick, 1000);
+    };
+    tick();
+    return () => { stopped = true; };
+  };
+
+  const decide = async (messageId, approvalId, outcome) => {
+    update(messageId, { deciding: outcome });
+    try { await client.post(`/admin/approvals/${approvalId}`, { outcome }); }
+    catch (error) { update(messageId, { deciding: null, decideError: error.message }); }
+  };
+
+  const run = async (preset) => {
+    const text = (preset ?? instruction).trim();
     if (!text || busy) return;
+    if (text.length > MAX_CHARS) { append({ kind: "error", text: `Instructions are limited to ${MAX_CHARS} characters.` }); return; }
     setInstruction("");
     append({ kind: "user", text });
     setBusy(true);
     try {
-      const { token, agent } = await client.post("/admin/agent/token", { agent: "support-agent" });
-      const nextHistory = [...history, { role: "user", content: text }];
-      const plan = await client.post("/admin/agent/plan", { messages: nextHistory });
-      append({ kind: "agent", text: plan.content || `The model selected ${plan.tool_calls?.length || 0} tool call(s).` });
+      const { token } = await client.post("/admin/agent/token", { agent: "support-agent" });
       let session = await initialize(token);
-      const toolMessages = [];
-      for (const call of plan.tool_calls || []) {
-        let args;
-        try { args = JSON.parse(call.function.arguments || "{}"); } catch { append({ kind: "error", text: `Model returned invalid arguments for ${call.function.name}.` }); continue; }
-        append({ kind: "call", tool: call.function.name, args, status: "sending" });
-        const result = await callGateway(token, session, call.function.name, args);
-        session = result.session;
-        append({ kind: "result", tool: call.function.name, verdict: result.verdict, reason: result.reason, text: result.text });
-        toolMessages.push({ role: "tool", tool_call_id: call.id, content: result.text });
+      let convo = [...history, { role: "user", content: text }];
+      let finished = false;
+      for (let step = 1; step <= MAX_STEPS && !finished; step += 1) {
+        const thinking = append({ kind: "status", text: step === 1 ? "Agent is planning…" : "Agent is reading the tool results…" });
+        const plan = await client.post("/admin/agent/plan", { messages: convo });
+        setMessages((items) => items.filter((m) => m.id !== thinking));
+        const calls = plan.tool_calls || [];
+        if (calls.length === 0) {
+          append({ kind: "answer", text: plan.content });
+          convo = [...convo, { role: "assistant", content: plan.content || "" }];
+          finished = true;
+          break;
+        }
+        if (plan.content) append({ kind: "plan", text: plan.content });
+        const toolMessages = [];
+        for (const call of calls) {
+          let args;
+          try { args = JSON.parse(call.function.arguments || "{}"); }
+          catch { append({ kind: "error", text: `The model sent invalid arguments for ${call.function.name}.` }); continue; }
+          const callId = append({ kind: "call", tool: call.function.name, args, status: "sending" });
+          const stopWatching = watchApproval(session, call.function.name, callId);
+          const result = await callGateway(token, session, call.function.name, args);
+          stopWatching();
+          session = result.session;
+          update(callId, { status: "done", verdict: result.verdict, reason: result.reason, output: result.text, approval: null });
+          toolMessages.push({ role: "tool", tool_call_id: call.id, content: `[gateway verdict: ${result.verdict}${result.reason ? ", " + result.reason : ""}] ${result.text}` });
+        }
+        convo = [...convo, { role: "assistant", content: plan.content || "", tool_calls: calls }, ...toolMessages];
       }
-      setHistory([...nextHistory, { role: "assistant", content: plan.content || "", tool_calls: plan.tool_calls || [] }, ...toolMessages]);
+      if (!finished) append({ kind: "error", text: `Stopped after ${MAX_STEPS} steps without a final answer.` });
+      setHistory(convo);
     } catch (error) {
+      setMessages((items) => items.filter((m) => m.kind !== "status"));
       append({ kind: "error", text: error.message });
     } finally {
       setBusy(false);
     }
   };
 
+  const results = messages.filter((m) => m.kind === "call" && m.status === "done");
   return (
     <div className="agent-layout">
       <div className="panel agent-chat">
         <h2>Customer Support Agent · live gateway client</h2>
-        <div className="agent-messages">
-          {messages.length === 0 && <div className="empty">No instruction yet. The agent will choose a tool and send the call through the running gateway.</div>}
-          {messages.map((m, i) => (
-            <div className={`agent-message ${m.kind}`} key={i}>
-              <div className="agent-label">{m.kind === "user" ? "User" : m.kind === "call" ? `Tool call · ${m.tool}` : "Agent"}</div>
+        <div className="agent-examples">
+          {EXAMPLES.map(([label, prompt]) => <button key={label} className="example-chip" disabled={busy} onClick={() => run(prompt)} title={prompt}>{label}</button>)}
+          {messages.length > 0 && <button className="example-chip clear" disabled={busy} onClick={() => { setMessages([]); setHistory([]); }}>Clear</button>}
+        </div>
+        <div className="agent-messages" aria-live="polite">
+          {messages.length === 0 && <div className="empty">Pick an example above or type an instruction. Every tool call the agent makes goes through the gateway, and anything risky waits for your approval here.</div>}
+          {messages.map((m) => (
+            <div className={`agent-message ${m.kind}`} key={m.id}>
+              <div className="agent-label">{{ user: "User", call: `Tool call · ${m.tool}`, answer: "Agent", plan: "Agent · plan", status: "Agent", error: "Error" }[m.kind]}</div>
               {m.kind === "call" && <pre>{prettyArgs(m.args)}</pre>}
-              {m.kind === "result" && <><span className={`verdict ${m.verdict}`}>{VERDICT_LABEL[m.verdict] || m.verdict}</span>{m.reason && <span className="agent-reason"> {m.reason}</span>}<pre>{m.text}</pre></>}
-              {m.text && m.kind !== "result" && <div>{m.text}</div>}
+              {m.kind === "call" && m.status === "sending" && !m.approval && <div className="call-pending">Sent to the gateway…</div>}
+              {m.kind === "call" && m.status === "sending" && m.approval && (
+                <div className="inline-approval">
+                  <div><strong>Held for human approval</strong> · {m.approval.left}s left (no answer = deny)</div>
+                  <div className="hint">{m.approval.reason}</div>
+                  <div className="row-actions">
+                    <button className="act approve" disabled={!!m.deciding} onClick={() => decide(m.id, m.approval.id, "approve")}>{m.deciding === "approve" ? "Approving…" : "Approve"}</button>
+                    <button className="act deny" disabled={!!m.deciding} onClick={() => decide(m.id, m.approval.id, "deny")}>{m.deciding === "deny" ? "Denying…" : "Deny"}</button>
+                  </div>
+                  {m.decideError && <div className="login-error">{m.decideError}</div>}
+                </div>
+              )}
+              {m.kind === "call" && m.status === "done" && <div className="call-result"><span className={`verdict ${m.verdict}`}>{VERDICT_LABEL[m.verdict] || m.verdict}</span>{m.reason && <span className="agent-reason"> {m.reason}</span>}<pre>{m.output}</pre></div>}
+              {m.kind !== "call" && m.text && <div className={m.kind === "status" ? "call-pending" : ""}>{m.text}</div>}
             </div>
           ))}
         </div>
         <div className="agent-compose">
-          <textarea value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="Give the agent a real support instruction..." onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); } }} />
-          <button className="act approve" disabled={busy} onClick={run}>{busy ? "Running..." : "Send to agent"}</button>
+          <textarea value={instruction} maxLength={MAX_CHARS} onChange={(e) => setInstruction(e.target.value)} placeholder="Give the agent a support instruction…" onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); } }} />
+          <div className="compose-side"><span className="hint">{instruction.length}/{MAX_CHARS}</span><button className="act approve" disabled={busy || !instruction.trim()} onClick={() => run()}>{busy ? "Running…" : "Send to agent"}</button></div>
         </div>
       </div>
       <div className="panel agent-evidence">
         <h2>Live evidence</h2>
-        <div className="body"><p>Evidence from this session is shown from actual gateway responses.</p>{messages.filter((item) => item.kind === "result").length === 0 && <div className="empty">No tool execution yet.</div>}{messages.filter((item) => item.kind === "result").map((item, index) => <div className="evidence-item" key={index}><div><span className="mono">{item.tool}</span> <span className={`verdict ${item.verdict}`}>{VERDICT_LABEL[item.verdict] || item.verdict}</span></div>{item.reason && <div className="hint">Reason: {item.reason}</div>}<pre>{item.text}</pre></div>)}</div>
+        <div className="body"><p>Every verdict below is the gateway's real response to this session's tool calls.</p>{results.length === 0 && <div className="empty">No tool execution yet.</div>}{results.map((item) => <div className="evidence-item" key={item.id}><div><span className="mono">{item.tool}</span> <span className={`verdict ${item.verdict}`}>{VERDICT_LABEL[item.verdict] || item.verdict}</span></div>{item.reason && <div className="hint">Reason: {item.reason}</div>}<pre>{item.output}</pre></div>)}</div>
       </div>
     </div>
   );
 }
 
+/** Signed-in user name with a Log out button (clears the session cookie). */
 function UserBox({ user, onLogout }) {
   const logout = async () => {
     await fetch("/auth/logout", { method: "POST", credentials: "same-origin", headers: CSRF }).catch(() => {});
@@ -300,14 +409,15 @@ function UserBox({ user, onLogout }) {
 
 function verdictClass(v) { return "verdict " + v; }
 
+/** Live feed page: decision counters, KPIs and the stream of verdicts. */
 function LiveFeed({ metrics, decisions }) {
   return (
     <>
       <div className="stats">
         <div className="stat allow"><div className="n">{metrics?.allowed_requests ?? 0}</div><div className="l">allowed</div></div>
         <div className="stat deny"><div className="n">{metrics?.blocked_requests ?? 0}</div><div className="l">blocked</div></div>
-        <div className="stat approval"><div className="n">{metrics?.approval_requests ?? 0}</div><div className="l">held for approval</div></div>
-        <div className="stat"><div className="n">{metrics?.total_requests ?? 0}</div><div className="l">total requests</div></div>
+        <div className="stat approval"><div className="n">{metrics?.approval_requests ?? 0}</div><div className="l">human reviews<em>counted in final verdict</em></div></div>
+        <div className="stat"><div className="n">{metrics?.total_requests ?? 0}</div><div className="l">total decisions<em>allowed + blocked</em></div></div>
         <div className="stat"><div className="n">{metrics ? `${(metrics.p50_latency_us / 1000).toFixed(2)} ms` : "0 ms"}</div><div className="l">p50 gateway latency</div></div>
       </div>
       <KPICharts metrics={metrics} />
@@ -320,6 +430,7 @@ function LiveFeed({ metrics, decisions }) {
   );
 }
 
+/** Verdict distribution and measured latency percentiles. */
 function KPICharts({ metrics }) {
   const total = metrics?.total_requests || 0;
   const bars = [
@@ -336,6 +447,7 @@ function KPICharts({ metrics }) {
   );
 }
 
+/** One decision or event in the live feed: verdict, rules that fired and findings. */
 function FeedRow({ d }) {
   const t = new Date(d.time).toLocaleTimeString();
   if (d.type !== "decision") {
@@ -363,6 +475,7 @@ function FeedRow({ d }) {
   );
 }
 
+/** Human approval queue: approve or deny calls the gateway is holding. */
 function Approvals({ approvals, client }) {
   const resolve = (id, outcome) => client.post(`/admin/approvals/${id}`, { outcome });
   return (
@@ -392,6 +505,7 @@ function prettyArgs(args) {
   catch { return String(args); }
 }
 
+/** Tool registry: pinned manifests, quarantine re-approval, suspend, resume and revoke. */
 function Tools({ tools, client, state }) {
   const [items, setItems] = useState(tools);
   useEffect(() => setItems(tools), [tools]);
@@ -432,6 +546,7 @@ function Tools({ tools, client, state }) {
   );
 }
 
+/** Cedar policies: rules in force, per-file editor and the Groq natural-language builder. */
 function Policies({ client }) {
   const [status, setStatus] = useState(null);
   const [file, setFile] = useState("90-custom.cedar");
@@ -492,6 +607,7 @@ function Policies({ client }) {
   );
 }
 
+/** Editor for one policy file: save (validated, then hot-reloaded) or delete. */
 function PolicyEditor({ name, text, client, onSaved }) {
   const [val, setVal] = useState(text);
   const [msg, setMsg] = useState("");
@@ -526,6 +642,7 @@ function PolicyEditor({ name, text, client, onSaved }) {
   );
 }
 
+/** Benchmark results and the button that runs the live benchmark. */
 function Benchmark({ client }) {
   const [data, setData] = useState(null);
   const [running, setRunning] = useState(false);
@@ -567,6 +684,7 @@ function Benchmark({ client }) {
   );
 }
 
+/** Audit chain: verify hashes and signatures, and browse recent signed records. */
 function Audit({ client, state }) {
   const [res, setRes] = useState(null);
   const [records, setRecords] = useState([]);

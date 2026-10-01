@@ -18,6 +18,7 @@ import (
 
 const ttl = 2 * time.Hour
 
+// State is what the gateway knows about a session's data flow so far.
 type State struct {
 	Tainted         bool
 	HasPrivate      bool
@@ -25,6 +26,7 @@ type State struct {
 	PrivateValues   map[string]struct{}
 }
 
+// Store keeps session data-flow labels and the agent revocation list.
 type Store interface {
 	Get(ctx context.Context, id string) (State, error)
 	AddUntrusted(ctx context.Context, id string, values []string) error
@@ -43,16 +45,19 @@ type memSession struct {
 	touched time.Time
 }
 
+// Memory is an in-process Store, used when Redis is not configured.
 type Memory struct {
 	mu       sync.Mutex
 	sessions map[string]*memSession
 	revoked  map[string]bool
 }
 
+// NewMemory returns an empty in-memory store.
 func NewMemory() *Memory {
 	return &Memory{sessions: map[string]*memSession{}, revoked: map[string]bool{}}
 }
 
+// Backend names the store for the dashboard.
 func (m *Memory) Backend() string { return "memory" }
 
 func (m *Memory) get(id string) *memSession {
@@ -65,6 +70,7 @@ func (m *Memory) get(id string) *memSession {
 	return s
 }
 
+// Get returns a copy of the session's current state.
 func (m *Memory) Get(_ context.Context, id string) (State, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -80,6 +86,7 @@ func (m *Memory) Get(_ context.Context, id string) (State, error) {
 	return c, nil
 }
 
+// AddUntrusted marks the session as having read untrusted content and records values seen in it.
 func (m *Memory) AddUntrusted(_ context.Context, id string, values []string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -91,6 +98,7 @@ func (m *Memory) AddUntrusted(_ context.Context, id string, values []string) err
 	return nil
 }
 
+// AddPrivate marks the session as having read private data and records fingerprints of it.
 func (m *Memory) AddPrivate(_ context.Context, id string, values []string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -102,6 +110,7 @@ func (m *Memory) AddPrivate(_ context.Context, id string, values []string) error
 	return nil
 }
 
+// Revoke blocks every future call from the agent (the kill switch).
 func (m *Memory) Revoke(_ context.Context, a string) error {
 	m.mu.Lock()
 	m.revoked[a] = true
@@ -109,6 +118,7 @@ func (m *Memory) Revoke(_ context.Context, a string) error {
 	return nil
 }
 
+// Restore lifts an agent's revocation.
 func (m *Memory) Restore(_ context.Context, a string) error {
 	m.mu.Lock()
 	delete(m.revoked, a)
@@ -116,12 +126,14 @@ func (m *Memory) Restore(_ context.Context, a string) error {
 	return nil
 }
 
+// IsRevoked reports whether the agent has been revoked.
 func (m *Memory) IsRevoked(_ context.Context, a string) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.revoked[a], nil
 }
 
+// Revoked lists the revoked agents.
 func (m *Memory) Revoked(_ context.Context) ([]string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -135,8 +147,10 @@ func (m *Memory) Revoked(_ context.Context) ([]string, error) {
 
 // ---------- redis ----------
 
+// Redis is a Store backed by Redis, shared by every gateway replica.
 type Redis struct{ c *redis.Client }
 
+// NewRedis connects to Redis and checks that it responds.
 func NewRedis(url string) (*Redis, error) {
 	opt, err := redis.ParseURL(url)
 	if err != nil {
@@ -151,12 +165,14 @@ func NewRedis(url string) (*Redis, error) {
 	return &Redis{c: c}, nil
 }
 
+// Backend names the store for the dashboard.
 func (r *Redis) Backend() string { return "redis" }
 
 const revokedKey = "gw:revoked"
 
 func key(id, part string) string { return "gw:sess:" + id + ":" + part }
 
+// Get returns the session's current state.
 func (r *Redis) Get(ctx context.Context, id string) (State, error) {
 	st := State{UntrustedValues: map[string]struct{}{}, PrivateValues: map[string]struct{}{}}
 	pipe := r.c.Pipeline()
@@ -193,25 +209,32 @@ func (r *Redis) add(ctx context.Context, id, flag, set string, values []string) 
 	return err
 }
 
+// AddUntrusted marks the session as having read untrusted content and records values seen in it.
 func (r *Redis) AddUntrusted(ctx context.Context, id string, v []string) error {
 	return r.add(ctx, id, "tainted", "untrusted", v)
 }
 
+// AddPrivate marks the session as having read private data and records fingerprints of it.
 func (r *Redis) AddPrivate(ctx context.Context, id string, v []string) error {
 	return r.add(ctx, id, "private", "private", v)
 }
 
+// Revoke blocks every future call from the agent (the kill switch).
 func (r *Redis) Revoke(ctx context.Context, a string) error {
 	return r.c.SAdd(ctx, revokedKey, a).Err()
 }
+
+// Restore lifts an agent's revocation.
 func (r *Redis) Restore(ctx context.Context, a string) error {
 	return r.c.SRem(ctx, revokedKey, a).Err()
 }
 
+// IsRevoked reports whether the agent has been revoked.
 func (r *Redis) IsRevoked(ctx context.Context, a string) (bool, error) {
 	return r.c.SIsMember(ctx, revokedKey, a).Result()
 }
 
+// Revoked lists the revoked agents.
 func (r *Redis) Revoked(ctx context.Context) ([]string, error) {
 	out, err := r.c.SMembers(ctx, revokedKey).Result()
 	sort.Strings(out)

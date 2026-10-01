@@ -1,6 +1,6 @@
 module pnc3-gateway
 
-go 1.26.1
+go 1.26.0
 
 require (
 	github.com/cedar-policy/cedar-go v1.8.0

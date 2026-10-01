@@ -21,12 +21,14 @@ type credentialTransport struct {
 	base   http.RoundTripper
 }
 
+// RoundTrip adds the gateway's tool credential to every upstream request.
 func (t *credentialTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	r = r.Clone(r.Context())
 	r.Header.Set("X-Gateway-Credential", t.secret)
 	return t.base.RoundTrip(r)
 }
 
+// Pool keeps one MCP client session per upstream tool server.
 type Pool struct {
 	cfg      *config.Config
 	client   *mcp.Client
@@ -36,6 +38,7 @@ type Pool struct {
 	status   map[string]string
 }
 
+// NewPool returns a pool whose HTTP client injects the tool credential.
 func NewPool(cfg *config.Config, version string) *Pool {
 	return &Pool{
 		cfg:    cfg,
@@ -91,6 +94,7 @@ func (p *Pool) drop(name string, err error) {
 	p.status[name] = "down: " + err.Error()
 }
 
+// ListTools returns the tools an upstream server currently offers.
 func (p *Pool) ListTools(ctx context.Context, name string) ([]*mcp.Tool, error) {
 	s, err := p.session(ctx, name)
 	if err != nil {
@@ -104,6 +108,7 @@ func (p *Pool) ListTools(ctx context.Context, name string) ([]*mcp.Tool, error) 
 	return res.Tools, nil
 }
 
+// CallTool forwards an allowed call to its tool server, within the configured timeout.
 func (p *Pool) CallTool(ctx context.Context, server, tool string, args map[string]any) (*mcp.CallToolResult, error) {
 	s, err := p.session(ctx, server)
 	if err != nil {
@@ -119,6 +124,7 @@ func (p *Pool) CallTool(ctx context.Context, server, tool string, args map[strin
 	return res, nil
 }
 
+// Status reports whether each upstream is connected.
 func (p *Pool) Status() map[string]string {
 	p.mu.Lock()
 	defer p.mu.Unlock()

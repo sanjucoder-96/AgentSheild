@@ -28,6 +28,7 @@ const (
 // dummyHash keeps the login timing the same whether or not the username exists.
 var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("timing-equaliser"), bcrypt.DefaultCost)
 
+// Admin holds the dashboard administrator's credentials and the key that signs session cookies.
 type Admin struct {
 	username string
 	hash     []byte
@@ -84,6 +85,7 @@ func (a *Admin) CheckLogin(username, password string) bool {
 	return userOK && passOK
 }
 
+// IssueSession creates a signed session token for the administrator and returns it with its expiry.
 func (a *Admin) IssueSession() (string, time.Time, error) {
 	exp := time.Now().Add(a.TTL)
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{

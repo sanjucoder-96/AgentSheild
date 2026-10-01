@@ -560,7 +560,9 @@ func approvalAuditRecord(p *approval.Pending, outcome string) *audit.Record {
 		return nil
 	}
 	return &audit.Record{
-		ID:        p.ID,
+		// One approval produces two events (held, then the outcome). Each needs
+		// its own id: the PostgreSQL/RDS audit table enforces unique ids.
+		ID:        p.ID + "-" + outcome,
 		Type:      "approval",
 		AgentID:   p.AgentID,
 		SessionID: p.SessionID,

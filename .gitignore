@@ -16,6 +16,6 @@ deploy/.env
 deploy/release.env
 deploy/certs/
 
-# Local SSH key created by AWS deploy (NEVER commit)
+# Local SSH key for AWS (NEVER commit)
 deploy/aegis-key.pem
 deploy/*.pem

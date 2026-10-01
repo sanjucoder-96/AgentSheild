@@ -214,6 +214,20 @@ Change the dev secrets before running anything real.
 
 ---
 
+## Showing human approval
+
+**From the demo script:** `python3 demo/run_demo.py` — step 4 is denied and step 5 is
+approved by the reviewer. Add `--human` to click Approve / Deny yourself on the
+dashboard's **Approvals** page while the script waits.
+
+**From the agent console** (needs `MODEL_API_KEY`): open **Agent console**, click
+**Needs a human** (or type "Please delete all emails in the shared inbox"). The agent
+calls `delete_all_emails`; the gateway holds it and an orange card with **Approve /
+Deny** and a 60-second countdown appears inside the conversation (the sidebar's
+Approvals badge lights up too). Approve → the deletion runs and the agent reports it.
+Deny, or wait 60 s → the call is blocked and the agent says so. Either way the
+decision is in the live feed and the signed audit log.
+
 ## Level 3: security and deployment
 
 The Level 3 requirements, and where each one lives:

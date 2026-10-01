@@ -29,8 +29,10 @@ const (
 	KindSQL     = "sql"
 )
 
+// Duration is a time.Duration that can be written as "10s" in YAML.
 type Duration struct{ time.Duration }
 
+// UnmarshalYAML parses a duration string such as "60s".
 func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
 	v, err := time.ParseDuration(n.Value)
 	if err != nil {
@@ -40,6 +42,7 @@ func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
 	return nil
 }
 
+// Config is the complete gateway configuration: YAML settings plus secrets from the environment.
 type Config struct {
 	Listen             string          `yaml:"listen"`
 	Profile            string          `yaml:"profile"`
@@ -76,6 +79,7 @@ type Config struct {
 	ModelName        string `yaml:"-"`
 }
 
+// Auth selects how agents authenticate: dev tokens or an OIDC provider.
 type Auth struct {
 	Mode         string `yaml:"mode"` // "dev" (HS256 tokens from gatewayctl) or "oidc" (e.g. Keycloak)
 	OIDCIssuer   string `yaml:"oidc_issuer"`
@@ -83,17 +87,20 @@ type Auth struct {
 	AgentClaim   string `yaml:"agent_claim"`
 }
 
+// Upstream is a tool server that allowed calls are forwarded to.
 type Upstream struct {
 	Name string `yaml:"name"`
 	URL  string `yaml:"url"`
 }
 
+// Agent is a registered AI agent and the tools it may call.
 type Agent struct {
 	ID           string   `yaml:"id"`
 	Owner        string   `yaml:"owner"`
 	AllowedTools []string `yaml:"allowed_tools"`
 }
 
+// Destinations lists where data may go: allowed email domains, web hosts and internal hosts.
 type Destinations struct {
 	EmailDomains  []string          `yaml:"email_domains"`
 	URLHosts      []string          `yaml:"url_hosts"`
@@ -101,6 +108,7 @@ type Destinations struct {
 	StaticDNS     map[string]string `yaml:"static_dns"`
 }
 
+// Tool describes a registered tool: its server, risk flags, and which arguments carry destinations, paths, commands or SQL.
 type Tool struct {
 	Server          string            `yaml:"server"`
 	AllowedAgents   []string          `yaml:"allowed_agents"`
@@ -113,6 +121,7 @@ type Tool struct {
 	Args            map[string]string `yaml:"args"`
 }
 
+// Load reads the YAML file, applies environment overrides and defaults, and validates the result.
 func Load(path string) (*Config, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -251,6 +260,7 @@ func (c *Config) validate() error {
 	return nil
 }
 
+// Agent looks up a registered agent by id.
 func (c *Config) Agent(id string) (Agent, bool) {
 	for _, a := range c.Agents {
 		if a.ID == id {
@@ -260,6 +270,7 @@ func (c *Config) Agent(id string) (Agent, bool) {
 	return Agent{}, false
 }
 
+// AgentAllows reports whether the agent may call the tool.
 func (c *Config) AgentAllows(agentID, tool string) bool {
 	a, ok := c.Agent(agentID)
 	if !ok {
@@ -273,6 +284,7 @@ func (c *Config) AgentAllows(agentID, tool string) bool {
 	return false
 }
 
+// ToolNames returns the registered tool names in sorted order.
 func (c *Config) ToolNames() []string {
 	out := make([]string, 0, len(c.Tools))
 	for n := range c.Tools {

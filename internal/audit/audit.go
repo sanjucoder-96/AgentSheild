@@ -18,6 +18,7 @@ import (
 	"time"
 )
 
+// Record is one entry in the tamper-evident audit log: a decision or admin event, with its chain hash and signature.
 type Record struct {
 	Seq            int64            `json:"seq"`
 	ID             string           `json:"id"`
@@ -52,6 +53,7 @@ type VerifyResult struct {
 	PublicKey string `json:"public_key"`
 }
 
+// Store is an append-only audit log backend (JSONL file or PostgreSQL).
 type Store interface {
 	Append(r *Record) error
 	Recent(limit int, filter func(*Record) bool) ([]Record, error)
@@ -59,6 +61,7 @@ type Store interface {
 	Backend() string
 }
 
+// Signer holds the Ed25519 key that signs every audit record.
 type Signer struct {
 	priv ed25519.PrivateKey
 	Pub  ed25519.PublicKey
@@ -88,6 +91,7 @@ func LoadSigner(stateDir string) (*Signer, error) {
 	return &Signer{priv: priv, Pub: pub}, nil
 }
 
+// PublicHex returns the hex-encoded public key that verifies audit signatures.
 func (s *Signer) PublicHex() string { return hex.EncodeToString(s.Pub) }
 
 // seal fills PrevHash, Hash and Sig. The hash covers the record with Hash and Sig empty.
@@ -138,6 +142,7 @@ func verifyAll(pub ed25519.PublicKey, recs []Record) VerifyResult {
 	return res
 }
 
+// NewID returns a random identifier with the given prefix, such as dec-1a2b3c4d5e6f.
 func NewID(prefix string) string {
 	b := make([]byte, 6)
 	_, _ = rand.Read(b)

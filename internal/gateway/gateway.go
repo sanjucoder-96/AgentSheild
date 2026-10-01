@@ -23,6 +23,7 @@ import (
 
 const Version = "0.1.0-mvp"
 
+// Gateway is the zero-trust proxy: it authenticates, inspects and decides every tool call, then executes allowed ones.
 type Gateway struct {
 	cfg       *config.Config
 	log       *slog.Logger
@@ -46,6 +47,7 @@ type Gateway struct {
 	refreshMu   sync.Mutex
 }
 
+// Deps are the components a Gateway is built from.
 type Deps struct {
 	Config    *config.Config
 	Logger    *slog.Logger
@@ -59,6 +61,7 @@ type Deps struct {
 	Admin     *auth.Admin
 }
 
+// New wires the gateway together from its dependencies.
 func New(d Deps) *Gateway {
 	g := &Gateway{
 		cfg: d.Config, log: d.Logger, auth: d.Auth, policy: d.Policy, registry: d.Registry,
