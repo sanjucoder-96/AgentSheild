@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -491,17 +492,51 @@ func (g *Gateway) adminBench(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(b)
 }
 
+func copyFile(dst, src string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Close()
+}
+
+func benchmarkBinaryPath(exe string) string {
+	dir := filepath.Dir(exe)
+	if runtime.GOOS == "windows" {
+		for _, candidate := range []string{"bench.exe", "bench"} {
+			path := filepath.Join(dir, candidate)
+			if _, err := os.Stat(path); err == nil {
+				if filepath.Ext(path) == ".exe" {
+					return path
+				}
+				copyPath := filepath.Join(dir, "bench.exe")
+				if err := copyFile(copyPath, path); err == nil {
+					return copyPath
+				}
+				return path
+			}
+		}
+		return filepath.Join(dir, "bench.exe")
+	}
+	return filepath.Join(dir, "bench")
+}
+
 func (g *Gateway) adminRunBench(w http.ResponseWriter, r *http.Request) {
 	exe, err := os.Executable()
 	if err != nil {
 		writeHTTPError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	benchName := "bench"
-	if strings.HasSuffix(strings.ToLower(exe), ".exe") {
-		benchName += ".exe"
-	}
-	benchPath := filepath.Join(filepath.Dir(exe), benchName)
+	benchPath := benchmarkBinaryPath(exe)
 	workDir, err := os.Getwd()
 	if err != nil {
 		writeHTTPError(w, http.StatusInternalServerError, err.Error())

@@ -381,10 +381,13 @@ func (g *Gateway) fullPipeline(ctx context.Context, r *http.Request, agent, sess
 			}
 		}
 		argsJSON, _ := json.Marshal(redactArgs(params.Arguments))
-		outcome := g.approvals.Wait(ctx, &approval.Pending{
+		pending := &approval.Pending{
 			ID: audit.NewID("apr"), DecisionID: decisionID, AgentID: agent, SessionID: sessionID,
 			Tool: t.Name, Args: argsJSON, RuleIDs: d.RuleIDs, Reason: g.reasonText(d.Reason), Findings: out.report.Findings,
-		}, wait)
+		}
+		g.recordApproval(pending, "pending")
+		outcome := g.approvals.Wait(ctx, pending, wait)
+		g.recordApproval(pending, outcome)
 		*excluded += sw.skip("approval_wait")
 		out.approval = outcome
 		if outcome == approval.Approved {
@@ -550,6 +553,42 @@ func errorResult(decisionID, msg string) map[string]any {
 		"isError": true,
 		"_meta":   map[string]any{"gateway/decision_id": decisionID, "gateway/verdict": "error"},
 	}
+}
+
+func approvalAuditRecord(p *approval.Pending, outcome string) *audit.Record {
+	if p == nil {
+		return nil
+	}
+	return &audit.Record{
+		ID:        p.ID,
+		Type:      "approval",
+		AgentID:   p.AgentID,
+		SessionID: p.SessionID,
+		Tool:      p.Tool,
+		Verdict:   outcome,
+		RuleIDs:   p.RuleIDs,
+		Reason:    p.Reason,
+		Profile:   "full",
+		Args:      p.Args,
+		Findings:  p.Findings,
+		Detail:    mustJSON(map[string]string{"approval": outcome, "decision_id": p.DecisionID}),
+	}
+}
+
+func (g *Gateway) recordApproval(p *approval.Pending, outcome string) {
+	rec := approvalAuditRecord(p, outcome)
+	if rec == nil {
+		return
+	}
+	if err := g.audit.Append(rec); err != nil {
+		g.log.Error("approval audit append failed", "err", err)
+	}
+	g.hub.Broadcast("approval", rec)
+}
+
+func mustJSON(v any) json.RawMessage {
+	b, _ := json.Marshal(v)
+	return b
 }
 
 func (g *Gateway) recordDecision(id, agent, sessionID string, out *callOutcome, sw *stopwatch, overhead time.Duration) {
