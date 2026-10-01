@@ -14,7 +14,7 @@ name: ci-cd
 
 on:
   push:
-    branches: [main, V1-WorkingCopy]
+    branches: [master, main, V1-WorkingCopy]
   pull_request:
   workflow_dispatch:
 
